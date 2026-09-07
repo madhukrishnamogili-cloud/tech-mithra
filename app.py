@@ -1,48 +1,150 @@
-# ============================================================
-# TECH MITHRA AI PRO - COMPLETE APP
-# ============================================================
-# INSTALL:
-# pip install streamlit google-genai
-#
-# RUN:
-# streamlit run app.py
-#
-# SECRETS:
-# GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
-# ============================================================
-
 import streamlit as st
+import requests
+import base64
 import json
 import os
-import base64
 import mimetypes
 from datetime import datetime
-from google import genai
+import streamlit.components.v1 as components
 
-
-# ============================================================
-# PAGE CONFIG
-# ============================================================
+# =========================================================
+# TECH MITHRA AI - COMPLETE ONE FILE APP
+# =========================================================
 
 st.set_page_config(
-    page_title="Tech Mithra AI Pro",
+    page_title="Tech Mithra AI",
     page_icon="🚀",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-APP_NAME = "Tech Mithra AI Pro"
-HISTORY_FILE = "history.json"
+# =========================================================
+# FILES
+# =========================================================
 
-# Change this only if your Gemini model is different
-DEFAULT_MODEL = "gemini-2.5-flash"
+HISTORY_FILE = "tech_mithra_history.json"
+SETTINGS_FILE = "tech_mithra_settings.json"
 
 
-# ============================================================
-# CUSTOM CSS
-# ============================================================
+# =========================================================
+# DEFAULT SETTINGS
+# =========================================================
+
+DEFAULT_SETTINGS = {
+    "api_key": "",
+    "model": "gemini-3.6-flash",
+    "language": "English",
+    "voice": True
+}
+
+
+# =========================================================
+# LOAD SETTINGS
+# =========================================================
+
+def load_settings():
+    if os.path.exists(SETTINGS_FILE):
+        try:
+            with open(SETTINGS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+
+            for key, value in DEFAULT_SETTINGS.items():
+                if key not in data:
+                    data[key] = value
+
+            return data
+
+        except:
+            return DEFAULT_SETTINGS.copy()
+
+    return DEFAULT_SETTINGS.copy()
+
+
+def save_settings(data):
+    with open(SETTINGS_FILE, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=4)
+
+
+# =========================================================
+# LOAD HISTORY
+# =========================================================
+
+def load_history():
+
+    if os.path.exists(HISTORY_FILE):
+
+        try:
+
+            with open(HISTORY_FILE, "r", encoding="utf-8") as f:
+
+                return json.load(f)
+
+        except:
+
+            return []
+
+    return []
+
+
+# =========================================================
+# SAVE HISTORY
+# =========================================================
+
+def save_history(history):
+
+    with open(HISTORY_FILE, "w", encoding="utf-8") as f:
+
+        json.dump(
+            history,
+            f,
+            indent=4,
+            ensure_ascii=False
+        )
+
+
+# =========================================================
+# CLEAR HISTORY
+# =========================================================
+
+def clear_history():
+
+    if os.path.exists(HISTORY_FILE):
+
+        os.remove(HISTORY_FILE)
+
+    st.session_state.history = []
+
+
+# =========================================================
+# SESSION STATE
+# =========================================================
+
+if "settings" not in st.session_state:
+
+    st.session_state.settings = load_settings()
+
+
+if "history" not in st.session_state:
+
+    st.session_state.history = load_history()
+
+
+if "current_answer" not in st.session_state:
+
+    st.session_state.current_answer = ""
+
+
+if "page" not in st.session_state:
+
+    st.session_state.page = "Ask AI"
+
+
+# =========================================================
+# CSS
+# =========================================================
 
 st.markdown("""
+
 <style>
 
 .block-container {
@@ -51,438 +153,587 @@ st.markdown("""
 }
 
 .main-title {
-    font-size: 38px;
+    font-size: 45px;
     font-weight: 800;
+    margin-bottom: 0px;
 }
 
-.subtitle {
-    color: #6b7280;
-    font-size: 16px;
-    margin-bottom: 20px;
+.sub-title {
+    color: gray;
+    font-size: 18px;
+    margin-bottom: 25px;
+}
+
+.answer-box {
+    padding: 20px;
+    border-radius: 15px;
+    background-color: rgba(100,100,100,0.08);
+    margin-top: 15px;
+}
+
+.history-question {
+    font-weight: bold;
+}
+
+.stButton button {
+    border-radius: 10px;
 }
 
 </style>
+
 """, unsafe_allow_html=True)
 
 
-# ============================================================
-# SESSION STATE
-# ============================================================
+# =========================================================
+# TITLE
+# =========================================================
 
-if "history" not in st.session_state:
-    st.session_state.history = []
+st.markdown(
+    '<div class="main-title">💬 Tech Mithra AI</div>',
+    unsafe_allow_html=True
+)
 
-if "chat_messages" not in st.session_state:
-    st.session_state.chat_messages = []
-
-if "language" not in st.session_state:
-    st.session_state.language = "English"
-
-if "mcq_data" not in st.session_state:
-    st.session_state.mcq_data = []
-
-if "mcq_answers" not in st.session_state:
-    st.session_state.mcq_answers = {}
-
-if "mcq_submitted" not in st.session_state:
-    st.session_state.mcq_submitted = False
-
-if "mcq_score" not in st.session_state:
-    st.session_state.mcq_score = 0
+st.markdown(
+    '<div class="sub-title">'
+    'Ask anything • Upload Photo • Camera • Files • Exam Helper'
+    '</div>',
+    unsafe_allow_html=True
+)
 
 
-# ============================================================
-# HISTORY FUNCTIONS
-# ============================================================
+# =========================================================
+# SIDEBAR
+# =========================================================
 
-def load_history():
+with st.sidebar:
 
-    try:
+    st.title("🤖 Tech Mithra AI")
 
-        if os.path.exists(HISTORY_FILE):
+    st.divider()
 
-            with open(
-                HISTORY_FILE,
-                "r",
-                encoding="utf-8"
-            ) as file:
-
-                data = json.load(file)
-
-                if isinstance(data, list):
-                    return data
-
-    except Exception:
-        pass
-
-    return []
+    if st.button(
+        "💬 Ask AI",
+        use_container_width=True
+    ):
+        st.session_state.page = "Ask AI"
 
 
-def save_history():
-
-    try:
-
-        with open(
-            HISTORY_FILE,
-            "w",
-            encoding="utf-8"
-        ) as file:
-
-            json.dump(
-                st.session_state.history,
-                file,
-                ensure_ascii=False,
-                indent=2
-            )
-
-    except Exception:
-        pass
+    if st.button(
+        "🎓 Exam Helper",
+        use_container_width=True
+    ):
+        st.session_state.page = "Exam Helper"
 
 
-def add_history(mode, question, answer):
-
-    item = {
-
-        "time": datetime.now().strftime(
-            "%d-%m-%Y %I:%M %p"
-        ),
-
-        "mode": mode,
-
-        "question": str(question),
-
-        "answer": str(answer)
-
-    }
-
-    st.session_state.history.insert(
-        0,
-        item
-    )
-
-    # Maximum 100 items
-    st.session_state.history = (
-        st.session_state.history[:100]
-    )
-
-    save_history()
+    if st.button(
+        "📚 GATE Preparation",
+        use_container_width=True
+    ):
+        st.session_state.page = "GATE Preparation"
 
 
-def clear_history():
+    if st.button(
+        "⚙️ Settings",
+        use_container_width=True
+    ):
+        st.session_state.page = "Settings"
 
-    st.session_state.history = []
+
+    st.divider()
+
+    st.caption("Tech Mithra AI")
+
+
+# =========================================================
+# FILE TO BASE64
+# =========================================================
+
+def file_to_base64(uploaded_file):
 
     try:
 
-        if os.path.exists(HISTORY_FILE):
+        file_bytes = uploaded_file.getvalue()
 
-            os.remove(HISTORY_FILE)
+        encoded = base64.b64encode(
+            file_bytes
+        ).decode("utf-8")
 
-    except Exception:
-        pass
+        return encoded
 
-
-# Load history only once
-if "history_loaded" not in st.session_state:
-
-    st.session_state.history = load_history()
-
-    st.session_state.history_loaded = True
-
-
-# ============================================================
-# GEMINI CLIENT
-# ============================================================
-
-@st.cache_resource
-def get_client():
-
-    api_key = None
-
-    try:
-
-        api_key = st.secrets.get(
-            "GEMINI_API_KEY"
-        )
-
-    except Exception:
-        pass
-
-
-    if not api_key:
-
-        api_key = os.getenv(
-            "GEMINI_API_KEY"
-        )
-
-
-    if not api_key:
+    except:
 
         return None
 
 
-    return genai.Client(
-        api_key=api_key
+# =========================================================
+# GEMINI API
+# =========================================================
+
+def ask_gemini(
+    question,
+    files=None,
+    mode="normal"
+):
+
+    settings = st.session_state.settings
+
+    api_key = settings.get(
+        "api_key",
+        ""
+    ).strip()
+
+    model = settings.get(
+        "model",
+        "gemini-3.6-flash"
+    ).strip()
+
+
+    # -----------------------------------------------------
+    # API KEY CHECK
+    # -----------------------------------------------------
+
+    if not api_key:
+
+        return (
+            "⚠️ API Key not set.\n\n"
+            "Go to ⚙️ Settings → API Key "
+            "and enter your Gemini API Key."
+        )
+
+
+    # -----------------------------------------------------
+    # URL
+    # -----------------------------------------------------
+
+    url = (
+        "https://generativelanguage.googleapis.com/"
+        "v1beta/models/"
+        + model
+        + ":generateContent?key="
+        + api_key
     )
 
 
-# ============================================================
-# GET MODEL
-# ============================================================
+    # -----------------------------------------------------
+    # LANGUAGE
+    # -----------------------------------------------------
 
-def get_model():
-
-    try:
-
-        if "GEMINI_MODEL" in st.secrets:
-
-            return st.secrets[
-                "GEMINI_MODEL"
-            ]
-
-    except Exception:
-        pass
+    language = settings.get(
+        "language",
+        "English"
+    )
 
 
-    return DEFAULT_MODEL
+    # -----------------------------------------------------
+    # MODE PROMPTS
+    # -----------------------------------------------------
 
+    if mode == "exam":
 
-# ============================================================
-# LANGUAGE INSTRUCTION
-# ============================================================
+        system_prompt = f"""
 
-def language_instruction():
+You are Tech Mithra AI Exam Helper.
 
-    return f"""
+Answer in {language}.
 
-IMPORTANT LANGUAGE:
+Help students prepare for examinations.
 
-Answer in:
-{st.session_state.language}
+If the question is an MCQ:
 
-If Telugu is selected,
-use clear Telugu.
+1. Give the correct answer.
+2. Clearly mention the option.
+3. Give a short explanation.
 
-If Telugu + English is selected,
-use both languages naturally.
+If it is a theory question:
 
-Keep answers clear,
-accurate and useful.
+1. Give a clear answer.
+2. Use headings.
+3. Use simple language.
+4. Give important points.
+5. Make it useful for exam writing.
+
+Do not give unnecessarily complicated answers.
+
+"""
+
+    elif mode == "gate":
+
+        system_prompt = f"""
+
+You are Tech Mithra AI GATE Preparation Assistant.
+
+Answer in {language}.
+
+Help students with:
+
+• GATE concepts
+• Numerical problems
+• Engineering subjects
+• Important formulas
+• Shortcuts
+• MCQs
+• Previous question concepts
+
+Explain step by step.
+
+For numerical problems:
+
+1. Given data
+2. Formula
+3. Calculation
+4. Final answer
+
+Keep answers student-friendly.
+
+"""
+
+    else:
+
+        system_prompt = f"""
+
+You are Tech Mithra AI.
+
+Answer in {language}.
+
+Give accurate, clear and helpful answers.
+
+For study questions:
+
+• Explain simply.
+• Use headings.
+• Use bullet points.
+• Give examples when needed.
+
+If the user asks an MCQ:
+
+Clearly mention:
+
+Correct Answer:
+Option:
+
+Then explain briefly.
 
 """
 
 
-# ============================================================
-# AI FUNCTION
-# ============================================================
+    # -----------------------------------------------------
+    # CONTENT
+    # -----------------------------------------------------
 
-def ask_ai(prompt, files=None):
+    contents = []
 
-    client = get_client()
-
-    if client is None:
-
-        return (
-            "❌ GEMINI API KEY NOT FOUND.\n\n"
-            "Please add GEMINI_API_KEY "
-            "in Streamlit Secrets."
-        )
+    contents.append({
+        "text": system_prompt
+    })
 
 
-    model = get_model()
+    contents.append({
+        "text": question
+    })
 
 
-    final_prompt = f"""
+    # -----------------------------------------------------
+    # ADD FILES
+    # -----------------------------------------------------
 
-You are Tech Mithra AI Pro.
+    if files:
 
-You are an intelligent,
-friendly AI assistant
-for students.
+        for uploaded_file in files:
 
-{language_instruction()}
+            if uploaded_file is None:
 
-USER REQUEST:
-
-{prompt}
-
-Rules:
-
-1. Answer accurately.
-
-2. Use simple language.
-
-3. Use headings when useful.
-
-4. Use bullet points.
-
-5. For simple questions,
-keep answers short.
-
-6. For exam questions,
-give proper exam format.
-
-7. Do not add unnecessary text.
-
-"""
+                continue
 
 
-    try:
+            try:
 
-        contents = [final_prompt]
+                file_data = (
+                    uploaded_file.getvalue()
+                )
 
-
-        # Add uploaded files
-        if files:
-
-            for uploaded_file in files:
-
-                if uploaded_file is None:
-                    continue
-
-                try:
-
-                    file_bytes = (
-                        uploaded_file.getvalue()
+                encoded_file = (
+                    base64.b64encode(
+                        file_data
                     )
+                    .decode("utf-8")
+                )
+
+
+                mime_type = (
+                    uploaded_file.type
+                )
+
+
+                if not mime_type:
 
                     mime_type = (
-                        uploaded_file.type
-                    )
-
-                    if not mime_type:
-
-                        mime_type = (
-                            mimetypes.guess_type(
-                                uploaded_file.name
-                            )[0]
-                        )
-
-                    if not mime_type:
-
-                        mime_type = (
-                            "application/octet-stream"
-                        )
-
-
-                    encoded_data = (
-                        base64.b64encode(
-                            file_bytes
-                        ).decode("utf-8")
+                        mimetypes.guess_type(
+                            uploaded_file.name
+                        )[0]
                     )
 
 
-                    contents.append({
+                if not mime_type:
 
-                        "inline_data": {
-
-                            "mime_type": mime_type,
-
-                            "data": encoded_data
-
-                        }
-
-                    })
+                    mime_type = (
+                        "application/octet-stream"
+                    )
 
 
-                except Exception:
-                    pass
+                contents.append({
+
+                    "inline_data": {
+
+                        "mime_type": mime_type,
+
+                        "data": encoded_file
+
+                    }
+
+                })
+
+            except:
+
+                pass
 
 
-        response = client.models.generate_content(
+    # -----------------------------------------------------
+    # REQUEST BODY
+    # -----------------------------------------------------
 
-            model=model,
+    data = {
 
-            contents=contents
+        "contents": [
+
+            {
+
+                "parts": contents
+
+            }
+
+        ],
+
+        "generationConfig": {
+
+            "temperature": 0.7,
+
+            "maxOutputTokens": 4096
+
+        }
+
+    }
+
+
+    # -----------------------------------------------------
+    # API REQUEST
+    # -----------------------------------------------------
+
+    try:
+
+        response = requests.post(
+
+            url,
+
+            headers={
+                "Content-Type":
+                "application/json"
+            },
+
+            json=data,
+
+            timeout=60
 
         )
 
 
-        if response and response.text:
+        # -------------------------------------------------
+        # ERROR
+        # -------------------------------------------------
 
-            return response.text
+        if response.status_code != 200:
 
+            try:
+
+                error_data = response.json()
+
+                error_message = (
+                    error_data
+                    .get("error", {})
+                    .get(
+                        "message",
+                        "Unknown API error"
+                    )
+                )
+
+            except:
+
+                error_message = response.text
+
+
+            return (
+
+                f"❌ AI Error ({response.status_code})\n\n"
+
+                f"{error_message}\n\n"
+
+                "Check:\n"
+
+                "1. API Key\n"
+                "2. Model Name\n"
+                "3. Internet Connection\n"
+
+            )
+
+
+        # -------------------------------------------------
+        # RESPONSE
+        # -------------------------------------------------
+
+        result = response.json()
+
+
+        try:
+
+            answer = (
+
+                result["candidates"][0]
+                ["content"]["parts"][0]
+                ["text"]
+
+            )
+
+            return answer
+
+
+        except:
+
+            return (
+
+                "❌ AI returned an unexpected response.\n\n"
+
+                + str(result)
+
+            )
+
+
+    except requests.exceptions.Timeout:
 
         return (
-            "❌ AI did not return an answer. "
+
+            "⚠️ Request timed out.\n\n"
+
             "Please try again."
+
+        )
+
+
+    except requests.exceptions.ConnectionError:
+
+        return (
+
+            "⚠️ Internet connection problem.\n\n"
+
+            "Please check your internet."
+
         )
 
 
     except Exception as e:
 
         return (
-            "❌ AI Error:\n\n"
+
+            "❌ Error:\n\n"
+
             + str(e)
+
         )
 
 
-# ============================================================
-# VOICE OUTPUT
-# PLAY / PAUSE / RESUME / STOP
-# ============================================================
+# =========================================================
+# SAVE QUESTION TO HISTORY
+# =========================================================
 
-def voice_controls(text):
+def add_to_history(
+    question,
+    answer,
+    page
+):
 
-    safe_text = (
-        str(text)
-        .replace("\\", "\\\\")
-        .replace("`", "\\`")
-        .replace("${", "\\${")
-        .replace("</script>", "")
+    item = {
+
+        "question": question,
+
+        "answer": answer,
+
+        "page": page,
+
+        "time": datetime.now()
+        .strftime(
+            "%d-%m-%Y %H:%M:%S"
+        )
+
+    }
+
+
+    st.session_state.history.insert(
+        0,
+        item
     )
 
 
-    html = f"""
+    save_history(
+        st.session_state.history
+    )
+
+
+# =========================================================
+# VOICE PLAYER
+# PAUSE + RESUME ONLY
+# =========================================================
+
+def voice_player(text):
+
+    clean_text = (
+        text
+        .replace("\\", "\\\\")
+        .replace("`", "\\`")
+        .replace("${", "\\${")
+    )
+
+
+    html_code = f"""
 
     <div style="
-        display:flex;
-        gap:8px;
-        flex-wrap:wrap;
         margin-top:10px;
+        margin-bottom:10px;
     ">
 
-        <button onclick="playVoice()"
-        style="
-            padding:8px 14px;
-            border-radius:8px;
-            border:none;
-            cursor:pointer;
-        ">
-            🔊 Play
-        </button>
-
-
-        <button onclick="pauseVoice()"
-        style="
-            padding:8px 14px;
-            border-radius:8px;
-            border:none;
-            cursor:pointer;
-        ">
+        <button
+            onclick="pauseSpeech()"
+            style="
+                padding:10px 20px;
+                margin-right:10px;
+                border-radius:8px;
+                border:none;
+                cursor:pointer;
+                font-size:16px;
+            "
+        >
             ⏸️ Pause
         </button>
 
 
-        <button onclick="resumeVoice()"
-        style="
-            padding:8px 14px;
-            border-radius:8px;
-            border:none;
-            cursor:pointer;
-        ">
+        <button
+            onclick="resumeSpeech()"
+            style="
+                padding:10px 20px;
+                border-radius:8px;
+                border:none;
+                cursor:pointer;
+                font-size:16px;
+            "
+        >
             ▶️ Resume
-        </button>
-
-
-        <button onclick="stopVoice()"
-        style="
-            padding:8px 14px;
-            border-radius:8px;
-            border:none;
-            cursor:pointer;
-        ">
-            ⏹️ Stop
         </button>
 
     </div>
@@ -490,30 +741,39 @@ def voice_controls(text):
 
     <script>
 
-    var techMithraSpeech = null;
+    const textToSpeak = `{clean_text}`;
+
+    let speechStarted = false;
 
 
-    function playVoice() {{
+    function startSpeech() {{
 
-        window.speechSynthesis.cancel();
+        if (
+            !speechStarted
+        ) {{
 
-        techMithraSpeech =
-        new SpeechSynthesisUtterance(
-            `{safe_text}`
-        );
+            const speech = new SpeechSynthesisUtterance(
+                textToSpeak
+            );
 
-        techMithraSpeech.rate = 1;
+            speech.lang = "en-US";
 
-        techMithraSpeech.pitch = 1;
+            speech.rate = 1;
 
-        window.speechSynthesis.speak(
-            techMithraSpeech
-        );
+            speech.pitch = 1;
+
+            window.speechSynthesis.speak(
+                speech
+            );
+
+            speechStarted = true;
+
+        }}
 
     }}
 
 
-    function pauseVoice() {{
+    function pauseSpeech() {{
 
         if (
             window.speechSynthesis.speaking
@@ -526,22 +786,21 @@ def voice_controls(text):
     }}
 
 
-    function resumeVoice() {{
+    function resumeSpeech() {{
 
         if (
-            window.speechSynthesis.paused
+            !speechStarted
         ) {{
+
+            startSpeech();
+
+        }}
+
+        else {{
 
             window.speechSynthesis.resume();
 
         }}
-
-    }}
-
-
-    function stopVoice() {{
-
-        window.speechSynthesis.cancel();
 
     }}
 
@@ -550,1472 +809,782 @@ def voice_controls(text):
     """
 
 
-    st.components.v1.html(
-        html,
-        height=65
+    components.html(
+        html_code,
+        height=80
     )
 
 
-# ============================================================
-# SIDEBAR
-# ============================================================
+# =========================================================
+# ASK AI PAGE
+# =========================================================
 
-with st.sidebar:
+if st.session_state.page == "Ask AI":
 
-    st.title("🚀 Tech Mithra AI")
-
-    st.caption(
-        "AI-Powered Student Assistant"
-    )
-
-    st.divider()
-
-
-    menu_items = [
-
-        "💬 AI Chat",
-
-        "🔬 Project & Lab Guide",
-
-        "🎉 Event Planner",
-
-        "📚 Exam Hacker",
-
-        "🎓 GATE Preparation",
-
-        "💼 Placement Prep",
-
-        "⚙️ Settings"
-
-    ]
-
-
-    selected = st.radio(
-
-        "Choose Feature",
-
-        menu_items
-
+    st.subheader(
+        "💬 Ask AI"
     )
 
 
-    st.divider()
+    # -----------------------------------------------------
+    # QUESTION
+    # -----------------------------------------------------
 
-    st.caption(
-        "🚀 Tech Mithra AI Pro"
-    )
+    question = st.text_area(
 
-
-# ============================================================
-# HEADER
-# ============================================================
-
-st.markdown(
-    '<div class="main-title">'
-    '🚀 Tech Mithra AI Pro'
-    '</div>',
-
-    unsafe_allow_html=True
-)
-
-
-# ============================================================
-# AI CHAT
-# ============================================================
-
-if selected == "💬 AI Chat":
-
-    st.markdown(
-        '<div class="subtitle">'
-        'Ask anything like ChatGPT'
-        '</div>',
-
-        unsafe_allow_html=True
-    )
-
-
-    # ========================================================
-    # DISPLAY CHAT
-    # ========================================================
-
-    for message in st.session_state.chat_messages:
-
-
-        with st.chat_message(
-            message["role"]
-        ):
-
-            st.markdown(
-                message["content"]
-            )
-
-
-            if message["role"] == "assistant":
-
-                voice_controls(
-                    message["content"]
-                )
-
-
-    # ========================================================
-    # ATTACHMENTS
-    # ========================================================
-
-    uploaded_items = []
-
-
-    with st.expander(
-        "➕ Attachments"
-    ):
-
-
-        upload_photo = st.file_uploader(
-
-            "🖼️ Upload Photo",
-
-            type=[
-
-                "png",
-
-                "jpg",
-
-                "jpeg",
-
-                "webp"
-
-            ],
-
-            key="chat_photo"
-
-        )
-
-
-        camera_photo = st.camera_input(
-            "📷 Take Photo"
-        )
-
-
-        upload_file = st.file_uploader(
-
-            "📁 Upload File",
-
-            type=[
-
-                "txt",
-
-                "pdf",
-
-                "csv",
-
-                "json",
-
-                "py",
-
-                "java",
-
-                "c",
-
-                "cpp",
-
-                "html",
-
-                "css",
-
-                "js",
-
-                "md"
-
-            ],
-
-            key="chat_file"
-
-        )
-
-
-        if upload_photo:
-
-            uploaded_items.append(
-                upload_photo
-            )
-
-
-        if camera_photo:
-
-            uploaded_items.append(
-                camera_photo
-            )
-
-
-        if upload_file:
-
-            uploaded_items.append(
-                upload_file
-            )
-
-
-    # ========================================================
-    # MICROPHONE
-    # ========================================================
-
-    st.markdown("### 🎤 Voice Question")
-
-
-    audio_file = st.audio_input(
-        "Speak your question"
-    )
-
-
-    if audio_file:
-
-        st.audio(audio_file)
-
-
-        if st.button(
-            "🎤 Ask AI Using Voice",
-            use_container_width=True
-        ):
-
-
-            voice_prompt = """
-
-The user uploaded an audio recording.
-
-Listen to the audio carefully.
-
-Understand the question.
-
-Answer the question clearly.
-
-"""
-
-
-            with st.spinner(
-                "🎤 Understanding your voice..."
-            ):
-
-                answer = ask_ai(
-
-                    voice_prompt,
-
-                    [audio_file]
-
-                )
-
-
-            st.session_state.chat_messages.append({
-
-                "role": "user",
-
-                "content":
-                "🎤 Voice Question"
-
-            })
-
-
-            st.session_state.chat_messages.append({
-
-                "role": "assistant",
-
-                "content": answer
-
-            })
-
-
-            add_history(
-
-                "Voice AI Chat",
-
-                "🎤 Voice Question",
-
-                answer
-
-            )
-
-
-            st.rerun()
-
-
-    # ========================================================
-    # CHAT INPUT
-    # ========================================================
-
-    user_prompt = st.chat_input(
-        "Ask anything..."
-    )
-
-
-    if user_prompt:
-
-
-        # USER MESSAGE
-
-        st.session_state.chat_messages.append({
-
-            "role": "user",
-
-            "content": user_prompt
-
-        })
-
-
-        with st.chat_message("user"):
-
-            st.markdown(
-                user_prompt
-            )
-
-
-        # AI MESSAGE
-
-        with st.chat_message("assistant"):
-
-
-            with st.spinner(
-                "🤖 Thinking..."
-            ):
-
-                answer = ask_ai(
-
-                    user_prompt,
-
-                    uploaded_items
-
-                )
-
-
-            st.markdown(
-                answer
-            )
-
-
-            voice_controls(
-                answer
-            )
-
-
-        st.session_state.chat_messages.append({
-
-            "role": "assistant",
-
-            "content": answer
-
-        })
-
-
-        add_history(
-
-            "AI Chat",
-
-            user_prompt,
-
-            answer
-
-        )
-
-
-# ============================================================
-# PROJECT & LAB GUIDE
-# ============================================================
-
-elif selected == "🔬 Project & Lab Guide":
-
-
-    st.header(
-        "🔬 Project & Lab Guide"
-    )
-
-
-    topic = st.text_input(
-
-        "Project / Lab Topic",
+        "Ask your question",
 
         placeholder=
-        "Example: Automatic Solar Street Light"
+        "Ask anything...",
+
+        height=100,
+
+        label_visibility="collapsed"
 
     )
 
 
-    if st.button(
+    # -----------------------------------------------------
+    # PLUS OPTIONS
+    # -----------------------------------------------------
 
-        "🚀 Generate Complete Guide",
-
-        use_container_width=True
-
+    with st.expander(
+        "➕ Upload Options"
     ):
 
 
-        if not topic:
+        col1, col2, col3 = st.columns(3)
+
+
+        with col1:
+
+            uploaded_photo = (
+                st.file_uploader(
+
+                    "🖼️ Upload Photo",
+
+                    type=[
+                        "jpg",
+                        "jpeg",
+                        "png",
+                        "webp"
+                    ],
+
+                    key="photo_upload"
+
+                )
+            )
+
+
+        with col2:
+
+            camera_photo = (
+                st.camera_input(
+
+                    "📷 Camera"
+
+                )
+            )
+
+
+        with col3:
+
+            uploaded_file = (
+                st.file_uploader(
+
+                    "📁 Upload File",
+
+                    type=[
+                        "pdf",
+                        "txt",
+                        "doc",
+                        "docx",
+                        "jpg",
+                        "jpeg",
+                        "png"
+                    ],
+
+                    key="file_upload"
+
+                )
+            )
+
+
+    # -----------------------------------------------------
+    # ASK BUTTON
+    # -----------------------------------------------------
+
+    ask_button = st.button(
+
+        "🚀 Ask Tech Mithra AI",
+
+        use_container_width=True
+
+    )
+
+
+    # -----------------------------------------------------
+    # PROCESS
+    # -----------------------------------------------------
+
+    if ask_button:
+
+
+        if not question.strip():
 
             st.warning(
-                "⚠️ Please enter a topic."
+                "Please enter a question."
             )
 
 
         else:
 
 
-            prompt = f"""
+            files = []
 
-Create a complete
-engineering project guide.
 
-TOPIC:
+            if uploaded_photo:
 
-{topic}
+                files.append(
+                    uploaded_photo
+                )
 
-Include:
 
-1. Title
+            if camera_photo:
 
-2. Aim
+                files.append(
+                    camera_photo
+                )
 
-3. Introduction
 
-4. Objectives
+            if uploaded_file:
 
-5. Components Required
-
-6. Block Diagram
-
-7. Working Principle
-
-8. Procedure
-
-9. Advantages
-
-10. Disadvantages
-
-11. Applications
-
-12. Result
-
-13. Viva Questions
-
-14. Future Scope
-
-"""
+                files.append(
+                    uploaded_file
+                )
 
 
             with st.spinner(
-                "🔬 Creating guide..."
+                "🤖 Tech Mithra AI is thinking..."
             ):
 
-                answer = ask_ai(
-                    prompt
-                )
 
-
-            st.markdown(answer)
-
-            voice_controls(answer)
-
-
-            add_history(
-
-                "Project & Lab Guide",
-
-                topic,
-
-                answer
-
-            )
-
-
-# ============================================================
-# EVENT PLANNER
-# ============================================================
-
-elif selected == "🎉 Event Planner":
-
-
-    st.header(
-        "🎉 Event Planner"
-    )
-
-
-    event_name = st.text_input(
-        "Event Name"
-    )
-
-
-    event_type = st.selectbox(
-
-        "Event Type",
-
-        [
-
-            "Technical Event",
-
-            "Workshop",
-
-            "Seminar",
-
-            "College Fest",
-
-            "Cultural Event",
-
-            "Sports Event",
-
-            "Hackathon",
-
-            "Other"
-
-        ]
-
-    )
-
-
-    audience = st.text_input(
-        "Target Audience"
-    )
-
-
-    if st.button(
-
-        "🎯 Generate Event Plan",
-
-        use_container_width=True
-
-    ):
-
-
-        if not event_name:
-
-            st.warning(
-                "⚠️ Please enter event name."
-            )
-
-
-        else:
-
-
-            prompt = f"""
-
-Create a complete event plan.
-
-Event Name:
-
-{event_name}
-
-Event Type:
-
-{event_type}
-
-Audience:
-
-{audience}
-
-Include:
-
-1. Objective
-
-2. Theme
-
-3. Schedule
-
-4. Registration
-
-5. Volunteers
-
-6. Stage Setup
-
-7. Materials
-
-8. Budget
-
-9. Promotion
-
-10. Social Media
-
-11. Prizes
-
-12. Certificates
-
-13. Safety
-
-14. Final Checklist
-
-"""
-
-
-            with st.spinner(
-                "🎉 Creating event plan..."
-            ):
-
-                answer = ask_ai(
-                    prompt
-                )
-
-
-            st.markdown(answer)
-
-            voice_controls(answer)
-
-
-            add_history(
-
-                "Event Planner",
-
-                event_name,
-
-                answer
-
-            )
-
-
-# ============================================================
-# EXAM HACKER
-# ============================================================
-
-elif selected == "📚 Exam Hacker":
-
-
-    st.header(
-        "📚 Exam Hacker"
-    )
-
-
-    tab1, tab2 = st.tabs(
-
-        [
-
-            "✍️ Answer Generator",
-
-            "🧠 MCQ Quiz"
-
-        ]
-
-    )
-
-
-    # ========================================================
-    # ANSWER GENERATOR
-    # ========================================================
-
-    with tab1:
-
-
-        question = st.text_area(
-            "Enter your Question"
-        )
-
-
-        marks = st.selectbox(
-
-            "Marks",
-
-            [
-
-                "2 Marks",
-
-                "5 Marks",
-
-                "10 Marks",
-
-                "15 Marks"
-
-            ]
-
-        )
-
-
-        if st.button(
-            "📝 Generate Answer",
-            use_container_width=True
-        ):
-
-
-            if not question:
-
-                st.warning(
-                    "Please enter question."
-                )
-
-
-            else:
-
-
-                prompt = f"""
-
-Question:
-
-{question}
-
-Marks:
-
-{marks}
-
-Generate an exam-ready answer.
-
-Use:
-
-- Clear headings
-
-- Important points
-
-- Simple language
-
-- Proper exam format
-
-"""
-
-
-                with st.spinner(
-                    "✍️ Writing answer..."
-                ):
-
-                    answer = ask_ai(
-                        prompt
-                    )
-
-
-                st.markdown(answer)
-
-                voice_controls(answer)
-
-
-                add_history(
-
-                    "Exam Answer",
+                answer = ask_gemini(
 
                     question,
 
-                    answer
+                    files,
+
+                    "normal"
 
                 )
 
 
-    # ========================================================
-    # MCQ QUIZ
-    # ========================================================
-
-    with tab2:
+            st.session_state.current_answer = (
+                answer
+            )
 
 
-        mcq_topic = st.text_input(
-            "MCQ Topic"
+            add_to_history(
+
+                question,
+
+                answer,
+
+                "Ask AI"
+
+            )
+
+
+    # -----------------------------------------------------
+    # DISPLAY ANSWER
+    # -----------------------------------------------------
+
+    if st.session_state.current_answer:
+
+
+        st.markdown(
+            "### 🤖 Tech Mithra AI"
         )
 
 
-        mcq_count = st.selectbox(
+        st.markdown(
 
-            "Number of Questions",
-
-            [
-
-                5,
-
-                10,
-
-                15,
-
-                20
-
-            ]
+            st.session_state.current_answer
 
         )
 
 
-        if st.button(
-            "🎯 Generate MCQs",
-            use_container_width=True
+        if (
+            st.session_state.settings
+            .get("voice", True)
         ):
 
+            voice_player(
 
-            if not mcq_topic:
+                st.session_state.current_answer
 
-                st.warning(
-                    "Enter MCQ topic."
-                )
-
-
-            else:
+            )
 
 
-                prompt = f"""
+# =========================================================
+# EXAM HELPER
+# =========================================================
 
-Create exactly
-{mcq_count}
-MCQs.
+elif st.session_state.page == "Exam Helper":
 
-Topic:
+    st.subheader(
+        "🎓 Exam Helper"
+    )
 
-{mcq_topic}
 
-Return ONLY JSON.
+    exam_option = st.radio(
 
-Format:
+        "Select Answer Type",
 
-[
-    {{
-        "question": "Question",
+        [
 
-        "options": {{
-            "A": "Option A",
-            "B": "Option B",
-            "C": "Option C",
-            "D": "Option D"
-        }},
+            "📝 Normal Answer",
 
-        "answer": "A",
+            "❓ MCQ Answer",
 
-        "explanation":
-        "Explanation"
-    }}
-]
+            "📚 Important Questions"
+
+        ],
+
+        horizontal=True
+
+    )
+
+
+    # -----------------------------------------------------
+    # NORMAL
+    # -----------------------------------------------------
+
+    if exam_option == "📝 Normal Answer":
+
+        exam_question = st.text_area(
+
+            "Enter your question",
+
+            placeholder=
+            "Example: Explain the levels of management"
+
+        )
+
+
+    # -----------------------------------------------------
+    # MCQ
+    # -----------------------------------------------------
+
+    elif exam_option == "❓ MCQ Answer":
+
+        exam_question = st.text_area(
+
+            "Enter MCQ",
+
+            placeholder=
+
+"""Example:
+
+What is IoT?
+
+A) Internet of Things
+B) Internet of Technology
+C) Internal Object Technology
+D) None
 
 """
 
+        )
 
-                with st.spinner(
-                    "🧠 Generating MCQs..."
-                ):
 
-                    raw_answer = ask_ai(
-                        prompt
-                    )
+    # -----------------------------------------------------
+    # IMPORTANT QUESTIONS
+    # -----------------------------------------------------
 
+    else:
 
-                try:
+        exam_question = st.text_area(
 
+            "Enter Subject",
 
-                    clean = raw_answer.strip()
+            placeholder=
 
-                    clean = clean.replace(
-                        "```json",
-                        ""
-                    )
+            "Example: Electrical Engineering"
 
-                    clean = clean.replace(
-                        "```",
-                        ""
-                    )
+        )
 
 
-                    start = clean.find("[")
-                    end = clean.rfind("]")
+    if st.button(
 
+        "📖 Get Exam Answer",
 
-                    if (
-                        start != -1
-                        and end != -1
-                    ):
+        use_container_width=True
 
-                        clean = clean[
-                            start:end + 1
-                        ]
+    ):
 
 
-                    st.session_state.mcq_data = (
-                        json.loads(clean)
-                    )
+        if not exam_question.strip():
 
-
-                    st.session_state.mcq_answers = {}
-
-
-                    st.session_state.mcq_submitted = False
-
-
-                    st.success(
-                        "✅ MCQs Generated!"
-                    )
-
-
-                except Exception:
-
-                    st.error(
-                        "❌ MCQ generation failed. "
-                        "Please try again."
-                    )
-
-
-        # DISPLAY MCQS
-
-        if st.session_state.mcq_data:
-
-
-            st.divider()
-
-
-            for index, mcq in enumerate(
-
-                st.session_state.mcq_data
-
-            ):
-
-
-                st.markdown(
-
-                    f"### Q{index + 1}. "
-                    f"{mcq.get('question', '')}"
-
-                )
-
-
-                options = mcq.get(
-                    "options",
-                    {}
-                )
-
-
-                selected_answer = st.radio(
-
-                    "Select Answer",
-
-                    ["A", "B", "C", "D"],
-
-                    format_func=lambda x:
-
-                    f"{x}. "
-                    f"{options.get(x, '')}",
-
-                    key=f"mcq_{index}"
-
-                )
-
-
-                st.session_state.mcq_answers[
-                    index
-                ] = selected_answer
-
-
-            if st.button(
-                "✅ Submit Quiz",
-                use_container_width=True
-            ):
-
-
-                score = 0
-
-
-                for index, mcq in enumerate(
-
-                    st.session_state.mcq_data
-
-                ):
-
-
-                    correct = str(
-
-                        mcq.get(
-                            "answer",
-                            ""
-                        )
-
-                    ).upper()
-
-
-                    selected_answer = str(
-
-                        st.session_state.mcq_answers.get(
-
-                            index,
-                            ""
-
-                        )
-
-                    ).upper()
-
-
-                    if selected_answer == correct:
-
-                        score += 1
-
-
-                st.session_state.mcq_score = score
-
-                st.session_state.mcq_submitted = True
-
-
-        # RESULTS
-
-        if st.session_state.mcq_submitted:
-
-
-            total = len(
-                st.session_state.mcq_data
+            st.warning(
+                "Please enter a question."
             )
 
 
-            score = (
-                st.session_state.mcq_score
+        else:
+
+
+            if exam_option == (
+                "📚 Important Questions"
+            ):
+
+                exam_question = (
+
+                    "Give important examination "
+                    "questions for the subject: "
+
+                    + exam_question
+
+                )
+
+
+            with st.spinner(
+                "Preparing answer..."
+            ):
+
+
+                answer = ask_gemini(
+
+                    exam_question,
+
+                    None,
+
+                    "exam"
+
+                )
+
+
+            st.session_state.current_answer = (
+                answer
             )
 
 
-            st.divider()
+            add_to_history(
 
+                exam_question,
 
-            st.success(
+                answer,
 
-                f"🏆 Your Score: "
-                f"{score}/{total}"
+                "Exam Helper"
 
             )
 
 
-            for index, mcq in enumerate(
-
-                st.session_state.mcq_data
-
-            ):
+    if st.session_state.current_answer:
 
 
-                correct = str(
-
-                    mcq.get(
-                        "answer",
-                        ""
-                    )
-
-                ).upper()
+        st.divider()
 
 
-                selected_answer = str(
-
-                    st.session_state.mcq_answers.get(
-
-                        index,
-                        ""
-
-                    )
-
-                ).upper()
+        st.markdown(
+            "### 📚 Answer"
+        )
 
 
-                st.markdown(
-                    f"### Q{index + 1}"
-                )
+        st.markdown(
+
+            st.session_state.current_answer
+
+        )
 
 
-                if selected_answer == correct:
+        if (
+            st.session_state.settings
+            .get("voice", True)
+        ):
 
-                    st.success(
-                        f"✅ Correct: {correct}"
-                    )
+            voice_player(
 
-                else:
+                st.session_state.current_answer
 
-                    st.error(
-                        f"❌ Correct Answer: "
-                        f"{correct}"
-                    )
+            )
 
 
-                st.info(
-
-                    "💡 "
-                    + mcq.get(
-                        "explanation",
-                        ""
-                    )
-
-                )
-
-
-# ============================================================
+# =========================================================
 # GATE PREPARATION
-# ============================================================
+# =========================================================
 
-elif selected == "🎓 GATE Preparation":
+elif st.session_state.page == "GATE Preparation":
 
-
-    st.header(
-        "🎓 GATE Preparation"
+    st.subheader(
+        "📚 GATE Preparation"
     )
 
 
-    branch = st.selectbox(
+    gate_option = st.selectbox(
 
-        "Select Branch",
+        "Select Option",
 
         [
 
-            "Electrical Engineering",
+            "📖 Explain Concept",
 
-            "Electronics Engineering",
+            "🔢 Numerical Problem",
 
-            "Computer Science",
+            "❓ GATE MCQ",
 
-            "Mechanical Engineering",
+            "📐 Formula",
 
-            "Civil Engineering",
-
-            "Instrumentation Engineering",
-
-            "Other"
+            "⭐ Important Topics"
 
         ]
 
     )
 
 
-    gate_type = st.selectbox(
+    gate_question = st.text_area(
 
-        "Preparation Type",
+        "Enter your question",
 
-        [
+        placeholder=
+        "Ask a GATE preparation question..."
 
-            "Study Plan",
-
-            "Topic Explanation",
-
-            "Important Questions",
-
-            "MCQ Practice",
-
-            "Formula Sheet",
-
-            "Revision Notes",
-
-            "Mock Test"
-
-        ]
-
-    )
-
-
-    topic = st.text_input(
-        "Topic"
     )
 
 
     if st.button(
 
-        "🎓 Generate GATE Content",
+        "🚀 Get GATE Answer",
 
         use_container_width=True
 
     ):
 
 
-        prompt = f"""
+        if not gate_question.strip():
 
-You are a GATE expert.
-
-Branch:
-
-{branch}
-
-Preparation Type:
-
-{gate_type}
-
-Topic:
-
-{topic}
-
-Create high-quality
-GATE preparation content.
-
-Make it:
-
-- Exam focused
-
-- Accurate
-
-- Easy to understand
-
-- Useful for students
-
-"""
-
-
-        with st.spinner(
-            "🎓 Preparing..."
-        ):
-
-            answer = ask_ai(
-                prompt
+            st.warning(
+                "Please enter a question."
             )
 
 
-        st.markdown(answer)
-
-        voice_controls(answer)
+        else:
 
 
-        add_history(
+            final_question = (
 
-            "GATE Preparation",
+                "GATE Mode: "
 
-            f"{branch} - {topic}",
+                + gate_option
 
-            answer
+                + "\n\n"
+
+                + gate_question
+
+            )
+
+
+            with st.spinner(
+                "Preparing GATE answer..."
+            ):
+
+
+                answer = ask_gemini(
+
+                    final_question,
+
+                    None,
+
+                    "gate"
+
+                )
+
+
+            st.session_state.current_answer = (
+                answer
+            )
+
+
+            add_to_history(
+
+                final_question,
+
+                answer,
+
+                "GATE Preparation"
+
+            )
+
+
+    if st.session_state.current_answer:
+
+
+        st.divider()
+
+
+        st.markdown(
+            "### 🎓 GATE Answer"
+        )
+
+
+        st.markdown(
+
+            st.session_state.current_answer
 
         )
 
 
-# ============================================================
-# PLACEMENT PREP
-# ============================================================
-
-elif selected == "💼 Placement Prep":
-
-
-    st.header(
-        "💼 Placement Preparation"
-    )
-
-
-    role = st.selectbox(
-
-        "Target Role",
-
-        [
-
-            "Software Engineer",
-
-            "Electrical Engineer",
-
-            "Electronics Engineer",
-
-            "Data Analyst",
-
-            "AI / ML Engineer",
-
-            "Embedded Engineer",
-
-            "PLC Engineer",
-
-            "Other"
-
-        ]
-
-    )
-
-
-    prep_type = st.selectbox(
-
-        "Preparation Type",
-
-        [
-
-            "Interview Questions",
-
-            "Technical Questions",
-
-            "HR Questions",
-
-            "Aptitude",
-
-            "Resume Help",
-
-            "Mock Interview"
-
-        ]
-
-    )
-
-
-    topic = st.text_input(
-        "Topic / Question"
-    )
-
-
-    if st.button(
-
-        "🚀 Start Preparation",
-
-        use_container_width=True
-
-    ):
-
-
-        prompt = f"""
-
-You are a placement trainer.
-
-Target Role:
-
-{role}
-
-Preparation Type:
-
-{prep_type}
-
-Topic:
-
-{topic}
-
-Create placement preparation content.
-
-Include:
-
-1. Important concepts
-
-2. Questions
-
-3. Answers
-
-4. Interview tips
-
-5. Common mistakes
-
-6. Practice questions
-
-"""
-
-
-        with st.spinner(
-            "💼 Preparing..."
+        if (
+            st.session_state.settings
+            .get("voice", True)
         ):
 
-            answer = ask_ai(
-                prompt
+            voice_player(
+
+                st.session_state.current_answer
+
             )
 
 
-        st.markdown(answer)
-
-        voice_controls(answer)
-
-
-        add_history(
-
-            "Placement Preparation",
-
-            topic,
-
-            answer
-
-        )
-
-
-# ============================================================
+# =========================================================
 # SETTINGS
-# ============================================================
+# =========================================================
 
-elif selected == "⚙️ Settings":
+elif st.session_state.page == "Settings":
 
-
-    st.header(
+    st.subheader(
         "⚙️ Settings"
     )
 
 
-    # ========================================================
-    # LANGUAGE SETTINGS ONLY
-    # ========================================================
+    # -----------------------------------------------------
+    # AI SETTINGS
+    # -----------------------------------------------------
 
-    with st.expander(
+    st.markdown(
+        "## 🤖 AI Settings"
+    )
+
+
+    api_key = st.text_input(
+
+        "Gemini API Key",
+
+        value=
+        st.session_state.settings
+        .get(
+            "api_key",
+            ""
+        ),
+
+        type="password",
+
+        help=
+        "Enter your Gemini API Key"
+
+    )
+
+
+    model_name = st.text_input(
+
+        "AI Model",
+
+        value=
+        st.session_state.settings
+        .get(
+            "model",
+            "gemini-3.6-flash"
+        )
+
+    )
+
+
+    language = st.selectbox(
 
         "🌐 Language",
 
-        expanded=True
-
-    ):
-
-
-        languages = [
+        [
 
             "English",
 
             "Telugu",
 
-            "Telugu + English",
+            "Hindi"
+
+        ],
+
+        index=[
+
+            "English",
+
+            "Telugu",
 
             "Hindi"
 
-        ]
+        ].index(
 
-
-        current_index = 0
-
-
-        if (
-            st.session_state.language
-            in languages
-        ):
-
-            current_index = languages.index(
-
-                st.session_state.language
-
+            st.session_state.settings
+            .get(
+                "language",
+                "English"
             )
 
+            if
+            st.session_state.settings
+            .get(
+                "language",
+                "English"
+            )
 
-        selected_language = st.selectbox(
+            in [
 
-            "Select Answer Language",
+                "English",
 
-            languages,
+                "Telugu",
 
-            index=current_index
+                "Hindi"
+
+            ]
+
+            else
+
+            "English"
 
         )
 
-
-        if st.button(
-            "💾 Save Language",
-            use_container_width=True
-        ):
+    )
 
 
-            st.session_state.language = (
-                selected_language
-            )
+    voice_enabled = st.checkbox(
+
+        "🔊 Enable AI Voice",
+
+        value=
+        st.session_state.settings
+        .get(
+            "voice",
+            True
+        )
+
+    )
 
 
-            st.success(
-                "✅ Language saved successfully!"
-            )
+    if st.button(
+
+        "💾 Save AI Settings",
+
+        use_container_width=True
+
+    ):
 
 
-    # ========================================================
-    # HISTORY
-    # ========================================================
+        st.session_state.settings[
+            "api_key"
+        ] = api_key
+
+
+        st.session_state.settings[
+            "model"
+        ] = model_name
+
+
+        st.session_state.settings[
+            "language"
+        ] = language
+
+
+        st.session_state.settings[
+            "voice"
+        ] = voice_enabled
+
+
+        save_settings(
+            st.session_state.settings
+        )
+
+
+        st.success(
+            "Settings saved successfully!"
+        )
+
 
     st.divider()
 
 
-    st.subheader(
-        "🕘 History"
+    # -----------------------------------------------------
+    # HISTORY
+    # -----------------------------------------------------
+
+    st.markdown(
+        "## 📜 History"
     )
 
 
-    if not st.session_state.history:
+    st.caption(
 
+        "Your questions and answers "
+        "are saved until you clear them."
+
+    )
+
+
+    if len(
+        st.session_state.history
+    ) == 0:
 
         st.info(
-            "📭 No history available."
+            "No history available."
         )
 
 
     else:
 
 
-        st.caption(
-            "History will remain saved "
-            "until you clear it."
-        )
-
-
-        for i, item in enumerate(
+        for index, item in enumerate(
 
             st.session_state.history
 
         ):
 
 
-            title = (
+            with st.expander(
 
-                f"{i + 1}. "
+                "💬 "
+                + item.get(
+                    "question",
+                    "Question"
+                )[:80]
 
-                f"{item.get('mode', '')} "
-
-                f"• "
-
-                f"{item.get('time', '')}"
-
-            )
+            ):
 
 
-            with st.expander(title):
+                st.caption(
+
+                    "Section: "
+
+                    + item.get(
+                        "page",
+                        ""
+                    )
+
+                )
+
+
+                st.caption(
+
+                    "Time: "
+
+                    + item.get(
+                        "time",
+                        ""
+                    )
+
+                )
 
 
                 st.markdown(
-                    "### 📝 Question"
+                    "### Question"
                 )
 
 
@@ -2030,11 +1599,11 @@ elif selected == "⚙️ Settings":
 
 
                 st.markdown(
-                    "### 🤖 Answer"
+                    "### Answer"
                 )
 
 
-                st.markdown(
+                st.write(
 
                     item.get(
                         "answer",
@@ -2052,94 +1621,62 @@ elif selected == "⚙️ Settings":
 
     ):
 
-
         clear_history()
 
-
         st.success(
-            "✅ History cleared successfully!"
+            "History cleared successfully."
         )
-
 
         st.rerun()
 
 
-    # ========================================================
-    # APP INFORMATION
-    # ========================================================
-
     st.divider()
 
 
-    with st.expander(
-        "📱 App Information"
-    ):
+    # -----------------------------------------------------
+    # ABOUT
+    # -----------------------------------------------------
 
-
-        st.write(
-            "### 🚀 Tech Mithra AI Pro"
-        )
-
-
-        st.write(
-            """
-Features:
-
-💬 AI Chat
-
-📎 Upload Photo
-
-📷 Camera
-
-📁 File Upload
-
-🎤 Voice Input
-
-🔊 Voice Output
-
-⏸️ Pause Voice
-
-▶️ Resume Voice
-
-⏹️ Stop Voice
-
-🔬 Project & Lab Guide
-
-🎉 Event Planner
-
-📚 Exam Hacker
-
-🧠 MCQ Quiz
-
-🎓 GATE Preparation
-
-💼 Placement Preparation
-
-🌐 Language
-
-🕘 History
-"""
-        )
-
-
-    st.divider()
-
-
-    st.info(
-        "🔒 Do not enter passwords, "
-        "bank details or sensitive "
-        "personal information."
+    st.markdown(
+        "## ℹ️ App Settings"
     )
 
 
-# ============================================================
+    st.info(
+
+        """
+
+Tech Mithra AI
+
+Features:
+
+• AI Question Answering
+• Photo Analysis
+• Camera Upload
+• File Upload
+• Exam Helper
+• MCQ Answers
+• GATE Preparation
+• Persistent History
+• AI Voice
+• Pause
+• Resume
+
+"""
+
+    )
+
+
+# =========================================================
 # FOOTER
-# ============================================================
+# =========================================================
 
 st.divider()
 
 
 st.caption(
-    "🚀 Tech Mithra AI Pro • "
-    "AI-Powered Student Assistant"
+
+    "🤖 Tech Mithra AI | "
+    "Your AI Study Assistant"
+
 )
