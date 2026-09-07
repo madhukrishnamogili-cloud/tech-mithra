@@ -1,31 +1,26 @@
-import os
-import time
-import json
-import random
-from datetime import datetime
+# ============================================================
+# TECH MITHRA AI - COMPLETE STREAMLIT APPLICATION
+# ============================================================
+#
+# INSTALL COMMAND:
+#
+# pip install streamlit google-genai
+#
+# OPTIONAL:
+# pip install pillow
+#
+# RUN COMMAND:
+#
+# streamlit run app.py
+#
+# ============================================================
+
 
 import streamlit as st
-
-# Optional file/image support
-try:
-    from PIL import Image
-    PIL_AVAILABLE = True
-except Exception:
-    PIL_AVAILABLE = False
-
-try:
-    from pypdf import PdfReader
-    PDF_AVAILABLE = True
-except Exception:
-    PDF_AVAILABLE = False
-
-# Gemini new SDK
-try:
-    from google import genai
-    from google.genai import types
-    GENAI_AVAILABLE = True
-except Exception:
-    GENAI_AVAILABLE = False
+import os
+import json
+import time
+from datetime import datetime
 
 
 # ============================================================
@@ -35,7 +30,8 @@ except Exception:
 st.set_page_config(
     page_title="Tech Mithra AI",
     page_icon="🚀",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded"
 )
 
 
@@ -46,32 +42,44 @@ st.set_page_config(
 st.markdown("""
 <style>
 
-.stApp {
-    background-color: #0e1117;
-    color: white;
+.block-container {
+    padding-top: 1rem;
+    padding-bottom: 2rem;
 }
 
 .main-title {
     font-size: 42px;
-    font-weight: bold;
+    font-weight: 800;
     margin-bottom: 0px;
 }
 
-.sub-title {
-    color: #a0a0a0;
-    font-size: 17px;
+.subtitle {
+    color: #777;
+    font-size: 18px;
+    margin-bottom: 25px;
 }
 
-.answer-box {
-    background-color: #171b24;
-    padding: 20px;
+.option-card {
+    padding: 15px;
+    border-radius: 12px;
+    margin-bottom: 10px;
+}
+
+.user-message {
+    padding: 15px;
     border-radius: 15px;
-    border-left: 4px solid #ff9800;
-    margin-top: 10px;
+    margin: 8px 0px;
 }
 
-.stButton button {
-    border-radius: 10px;
+.assistant-message {
+    padding: 15px;
+    border-radius: 15px;
+    margin: 8px 0px;
+}
+
+.small-text {
+    font-size: 14px;
+    color: gray;
 }
 
 </style>
@@ -88,266 +96,616 @@ if "messages" not in st.session_state:
 if "history" not in st.session_state:
     st.session_state.history = []
 
-if "selected_option" not in st.session_state:
-    st.session_state.selected_option = "AI Chat"
-
 if "language" not in st.session_state:
     st.session_state.language = "English"
 
-if "last_answer" not in st.session_state:
-    st.session_state.last_answer = ""
+if "current_option" not in st.session_state:
+    st.session_state.current_option = "💬 AI Chat"
 
 if "voice_enabled" not in st.session_state:
-    st.session_state.voice_enabled = False
+    st.session_state.voice_enabled = True
+
+if "selected_model" not in st.session_state:
+    st.session_state.selected_model = None
+
+if "gemini_client" not in st.session_state:
+    st.session_state.gemini_client = None
 
 
 # ============================================================
-# API KEY
+# HISTORY FILE
+# ============================================================
+
+HISTORY_FILE = "tech_mithra_history.json"
+
+
+def load_history():
+
+    try:
+
+        if os.path.exists(HISTORY_FILE):
+
+            with open(
+                HISTORY_FILE,
+                "r",
+                encoding="utf-8"
+            ) as file:
+
+                return json.load(file)
+
+    except Exception:
+
+        return []
+
+    return []
+
+
+def save_history():
+
+    try:
+
+        with open(
+            HISTORY_FILE,
+            "w",
+            encoding="utf-8"
+        ) as file:
+
+            json.dump(
+                st.session_state.history,
+                file,
+                ensure_ascii=False,
+                indent=4
+            )
+
+    except Exception:
+
+        pass
+
+
+# Load history only once
+if "history_loaded" not in st.session_state:
+
+    st.session_state.history = load_history()
+
+    st.session_state.history_loaded = True
+
+
+# ============================================================
+# GEMINI INITIALIZATION
 # ============================================================
 
 def get_api_key():
 
-    # Streamlit Cloud secrets
+    # Streamlit Secrets
     try:
+
         if "GEMINI_API_KEY" in st.secrets:
+
             return st.secrets["GEMINI_API_KEY"]
+
     except Exception:
+
         pass
 
-    # Environment variable
+    # Environment Variable
     api_key = os.getenv("GEMINI_API_KEY")
 
     if api_key:
+
         return api_key
 
     return None
 
 
-# ============================================================
-# CREATE GEMINI CLIENT
-# ============================================================
+def get_gemini_client():
 
-@st.cache_resource
-def get_client(api_key):
+    if st.session_state.gemini_client is not None:
 
-    if not GENAI_AVAILABLE:
+        return st.session_state.gemini_client
+
+
+    api_key = get_api_key()
+
+    if not api_key:
+
         return None
 
+
     try:
-        return genai.Client(api_key=api_key)
+
+        from google import genai
+
+        client = genai.Client(
+            api_key=api_key
+        )
+
+        st.session_state.gemini_client = client
+
+        return client
+
+
     except Exception:
+
         return None
 
 
 # ============================================================
-# GET AVAILABLE MODELS
-# Automatically discovers models
+# FIND AVAILABLE MODEL
 # ============================================================
 
-@st.cache_data(ttl=3600)
-def get_available_models(api_key):
+def find_working_model():
 
-    models = []
+    client = get_gemini_client()
 
-    if not GENAI_AVAILABLE:
-        return models
+    if client is None:
+
+        return None
+
+
+    # If model already selected
+    if st.session_state.selected_model:
+
+        return st.session_state.selected_model
+
 
     try:
 
-        client = genai.Client(api_key=api_key)
+        available_models = []
 
         for model in client.models.list():
 
-            try:
+            model_name = getattr(model, "name", "")
 
-                name = getattr(model, "name", "")
+            if model_name:
 
-                if not name:
-                    continue
+                available_models.append(model_name)
 
-                name = name.replace("models/", "")
 
-                # Only Gemini models
-                if "gemini" in name.lower():
+        # Preferred models
+        preferred_models = [
 
-                    models.append(name)
+            "models/gemini-3.6-flash",
+            "models/gemini-3-flash",
+            "models/gemini-2.5-flash",
+            "models/gemini-2.0-flash",
+            "gemini-3.6-flash",
+            "gemini-3-flash",
+            "gemini-2.5-flash",
+            "gemini-2.0-flash"
 
-            except Exception:
-                continue
+        ]
+
+
+        # Check preferred model
+        for preferred in preferred_models:
+
+            if preferred in available_models:
+
+                st.session_state.selected_model = preferred
+
+                return preferred
+
+
+        # Find any Gemini model
+        for model_name in available_models:
+
+            name = model_name.lower()
+
+            if "gemini" in name and "flash" in name:
+
+                st.session_state.selected_model = model_name
+
+                return model_name
+
+
+        # Any Gemini model
+        for model_name in available_models:
+
+            if "gemini" in model_name.lower():
+
+                st.session_state.selected_model = model_name
+
+                return model_name
+
 
     except Exception:
+
         pass
 
-    # Preferred order
-    preferred_models = [
-        "gemini-2.5-flash",
-        "gemini-2.5-flash-lite",
-        "gemini-2.0-flash",
-        "gemini-2.0-flash-lite",
-        "gemini-1.5-flash"
-    ]
 
-    final_models = []
-
-    # Add preferred models first if available
-    for preferred in preferred_models:
-
-        if preferred in models:
-            final_models.append(preferred)
-
-    # Add other discovered Gemini models
-    for model in models:
-
-        if model not in final_models:
-
-            lower_name = model.lower()
-
-            # Prefer flash models
-            if "flash" in lower_name:
-                final_models.append(model)
-
-    # Add remaining models
-    for model in models:
-
-        if model not in final_models:
-            final_models.append(model)
-
-    return final_models
+    return None
 
 
 # ============================================================
-# FALLBACK MODEL LIST
+# OFFLINE FALLBACK AI
 # ============================================================
 
-def fallback_models():
+def offline_response(question):
 
-    return [
+    question_lower = question.lower()
 
-        "gemini-2.5-flash",
 
-        "gemini-2.5-flash-lite",
+    # --------------------------------------------------------
+    # MANAGEMENT
+    # --------------------------------------------------------
 
-        "gemini-2.0-flash",
+    if "management" in question_lower:
 
-        "gemini-2.0-flash-lite"
+        return """
 
-    ]
+## Management
+
+Management is the process of planning, organizing, staffing, directing and controlling organizational resources to achieve organizational goals effectively and efficiently.
+
+### Main Functions of Management
+
+1. **Planning**
+   - Deciding what to do in the future.
+
+2. **Organizing**
+   - Arranging resources and responsibilities.
+
+3. **Staffing**
+   - Selecting and managing employees.
+
+4. **Directing**
+   - Guiding and motivating employees.
+
+5. **Controlling**
+   - Checking whether goals are achieved.
+
+"""
+
+
+    # --------------------------------------------------------
+    # CLOUD COMPUTING
+    # --------------------------------------------------------
+
+    if "cloud" in question_lower:
+
+        return """
+
+## Cloud Computing
+
+Cloud computing is the delivery of computing services such as servers, storage, databases, networking and software through the Internet.
+
+### Main Types
+
+- Public Cloud
+- Private Cloud
+- Hybrid Cloud
+
+### Service Models
+
+- IaaS
+- PaaS
+- SaaS
+
+"""
+
+
+    # --------------------------------------------------------
+    # AI
+    # --------------------------------------------------------
+
+    if "artificial intelligence" in question_lower or question_lower == "ai":
+
+        return """
+
+## Artificial Intelligence
+
+Artificial Intelligence (AI) is a branch of computer science that enables machines to perform tasks that normally require human intelligence.
+
+### Examples
+
+- Chatbots
+- Voice Assistants
+- Image Recognition
+- Self Driving Cars
+- Recommendation Systems
+
+"""
+
+
+    # --------------------------------------------------------
+    # DEFAULT RESPONSE
+    # --------------------------------------------------------
+
+    return f"""
+
+## Answer
+
+### Your Question
+
+**{question}**
+
+I am currently running in fallback mode.
+
+Please check:
+
+1. Internet connection.
+2. Gemini API key.
+3. Streamlit Secrets configuration.
+4. Gemini API availability.
+
+You can still use the application options such as:
+
+- Exam Helper
+- Event Planner
+- Project & Lab Guide
+- GATE Preparation
+
+"""
 
 
 # ============================================================
-# LANGUAGE INSTRUCTION
+# AI RESPONSE
 # ============================================================
 
-def language_instruction():
+def generate_ai_response(prompt):
+
+    client = get_gemini_client()
+
+
+    # No API key
+    if client is None:
+
+        return offline_response(prompt)
+
+
+    model_name = find_working_model()
+
+
+    if model_name is None:
+
+        return offline_response(prompt)
+
+
+    # Retry API
+    for attempt in range(3):
+
+        try:
+
+            response = client.models.generate_content(
+
+                model=model_name,
+
+                contents=prompt
+
+            )
+
+
+            if response:
+
+                text = getattr(
+                    response,
+                    "text",
+                    None
+                )
+
+                if text:
+
+                    return text
+
+
+        except Exception:
+
+            # Wait and retry
+            time.sleep(2)
+
+
+    # Never show technical API error
+    return offline_response(prompt)
+
+
+# ============================================================
+# ADD CHAT HISTORY
+# ============================================================
+
+def add_to_history(role, content):
+
+    item = {
+
+        "role": role,
+
+        "content": content,
+
+        "time": datetime.now().strftime(
+            "%d-%m-%Y %H:%M"
+        )
+
+    }
+
+
+    st.session_state.messages.append(item)
+
+    st.session_state.history.append(item)
+
+    save_history()
+
+
+# ============================================================
+# AI CHAT FUNCTION
+# ============================================================
+
+def normal_ai_chat(question):
 
     language = st.session_state.language
 
-    if language == "Telugu":
-        return """
-Respond completely in Telugu.
-Use simple Telugu language.
-If technical terms are needed, Telugu explanation with English technical words is allowed.
-"""
 
-    elif language == "Hindi":
-        return """
-Respond in simple Hindi.
-"""
-
-    else:
-        return """
-Respond in clear and simple English.
-"""
-
-
-# ============================================================
-# SYSTEM PROMPT
-# ============================================================
-
-def create_system_prompt(mode):
-
-    common = f"""
+    prompt = f"""
 
 You are Tech Mithra AI.
 
-You are a helpful AI assistant for students.
+Answer the user's question clearly and accurately.
 
-Your answers should be:
-- Accurate
-- Clear
-- Easy to understand
-- Well structured
-- Student friendly
+Selected language:
+{language}
 
-{language_instruction()}
+User Question:
+{question}
 
-"""
+Instructions:
 
-    if mode == "AI Chat":
-
-        return common + """
-
-You are a general AI assistant.
-
-Answer questions clearly.
-Explain concepts step by step when necessary.
+- Give a clear answer.
+- Use headings.
+- Use bullet points when useful.
+- For study questions give easy explanations.
+- For technical questions give examples.
+- Do not give unnecessary information.
 
 """
 
-    elif mode == "Event Planner":
 
-        return common + """
+    return generate_ai_response(prompt)
+
+
+# ============================================================
+# EVENT PLANNER
+# ============================================================
+
+def event_planner(
+    event_name,
+    budget,
+    guests,
+    location
+):
+
+    prompt = f"""
 
 You are an expert Event Planner.
 
-When a user gives an event idea, provide:
+Create a COMPLETE EVENT PLAN.
+
+Event Name:
+{event_name}
+
+Budget:
+{budget}
+
+Expected Guests:
+{guests}
+
+Location:
+{location}
+
+Give the complete plan from START TO END.
+
+Include:
 
 1. Event Overview
-2. Event Goal
-3. Target Audience
-4. Budget Planning
-5. Budget Breakdown
-6. Venue Suggestions
-7. Required Materials
-8. Team Requirements
-9. Timeline
-10. Step-by-step plan from beginning to ending
-11. Marketing and Promotion
-12. Registration Plan
-13. Food and Refreshments
-14. Technical Requirements
-15. Risk Management
-16. Final Event Day Checklist
-17. Post Event Activities
+2. Objectives
+3. Budget Planning
+4. Budget Breakdown
+5. Timeline
+6. Planning Before Event
+7. Venue Selection
+8. Decorations
+9. Food and Catering
+10. Invitations
+11. Guest Management
+12. Transportation
+13. Sound and Lighting
+14. Photography
+15. Event Schedule
+16. Team Responsibilities
+17. Risk Management
+18. Backup Plan
+19. Event Day Checklist
+20. Closing Activities
+21. Post Event Activities
 
-Make the plan practical.
+Make the answer practical.
+
+Use tables when useful.
 
 """
 
-    elif mode == "Exam Helper":
 
-        return common + """
+    return generate_ai_response(prompt)
 
-You are an Exam Helper.
 
-Help students with:
+# ============================================================
+# EXAM HELPER
+# ============================================================
 
-- Short answers
-- Long answers
-- 2 mark questions
-- 5 mark questions
-- 10 mark questions
-- Important questions
-- MCQs
-- MCQ answers
-- Explanations
-- Revision notes
+def exam_helper(question, answer_type):
 
-When asked for MCQs:
+    prompt = f"""
 
-Give format:
+You are an expert teacher and exam preparation assistant.
+
+Student Question:
+
+{question}
+
+Answer Type:
+
+{answer_type}
+
+Follow the requested answer type exactly.
+
+"""
+
+
+    # --------------------------------------------------------
+    # SHORT ANSWER
+    # --------------------------------------------------------
+
+    if answer_type == "Short Answer":
+
+        prompt += """
+
+Give:
+
+- Definition
+- Main points
+- Simple explanation
+
+Suitable for 2 to 5 marks.
+
+"""
+
+
+    # --------------------------------------------------------
+    # LONG ANSWER
+    # --------------------------------------------------------
+
+    elif answer_type == "Long Answer":
+
+        prompt += """
+
+Give a detailed exam answer.
+
+Include:
+
+- Introduction
+- Definition
+- Explanation
+- Important Points
+- Examples
+- Diagram explanation if applicable
+- Conclusion
+
+Suitable for 10 marks.
+
+"""
+
+
+    # --------------------------------------------------------
+    # MCQ
+    # --------------------------------------------------------
+
+    elif answer_type == "MCQs":
+
+        prompt += """
+
+Generate 10 Multiple Choice Questions.
+
+For every question provide:
 
 Question
+
 A)
 B)
 C)
@@ -356,494 +714,203 @@ D)
 Correct Answer:
 Explanation:
 
-"""
-
-    elif mode == "Project & Lab Guide":
-
-        return common + """
-
-You are a Project and Lab Guide.
-
-Help students with:
-
-- Project ideas
-- Project titles
-- Abstract
-- Objectives
-- Components
-- Circuit explanation
-- Software requirements
-- Hardware requirements
-- Procedure
-- Implementation
-- Results
-- Conclusion
-- Viva questions
-
-Provide practical and student-friendly guidance.
+Make the answers educational.
 
 """
 
-    elif mode == "GATE Preparation":
 
-        return common + """
+    # --------------------------------------------------------
+    # MCQ WITH ANSWERS
+    # --------------------------------------------------------
 
-You are a GATE Preparation Assistant.
+    elif answer_type == "MCQs With Answers":
 
-Help students with:
+        prompt += """
 
-- GATE study plans
-- Subject-wise preparation
-- Important topics
-- Daily timetable
-- Weekly timetable
-- Practice questions
-- MCQs
-- Previous question concepts
-- Revision strategy
-- Exam strategy
+Generate 15 Multiple Choice Questions.
 
-Give structured preparation plans.
+For every question provide:
+
+Question
+
+A)
+B)
+C)
+D)
+
+Correct Answer:
+Explanation:
+
+Make the correct answer clearly visible.
 
 """
 
-    return common
+
+    return generate_ai_response(prompt)
 
 
 # ============================================================
-# EXTRACT FILE TEXT
+# PROJECT GUIDE
 # ============================================================
 
-def extract_file_text(uploaded_file):
+def project_lab_guide(question):
 
-    if uploaded_file is None:
-        return ""
+    prompt = f"""
 
-    file_name = uploaded_file.name.lower()
+You are an engineering Project and Laboratory Guide.
 
-    try:
+Student Request:
 
-        # TXT
-        if file_name.endswith(".txt"):
+{question}
 
-            return uploaded_file.read().decode(
-                "utf-8",
-                errors="ignore"
-            )
+Give a complete practical answer.
 
+Include when applicable:
 
-        # JSON
-        if file_name.endswith(".json"):
+1. Project Title
+2. Abstract
+3. Objective
+4. Required Components
+5. Software Requirements
+6. Hardware Requirements
+7. Block Diagram Explanation
+8. Working Principle
+9. Circuit or System Explanation
+10. Procedure
+11. Implementation Steps
+12. Expected Output
+13. Advantages
+14. Applications
+15. Limitations
+16. Future Scope
+17. Conclusion
+18. Viva Questions
+19. Viva Answers
 
-            data = uploaded_file.read().decode(
-                "utf-8",
-                errors="ignore"
-            )
+Make the explanation easy for students.
 
-            return data
-
-
-        # CSV
-        if file_name.endswith(".csv"):
-
-            data = uploaded_file.read().decode(
-                "utf-8",
-                errors="ignore"
-            )
-
-            return data
-
-
-        # Markdown
-        if file_name.endswith(".md"):
-
-            data = uploaded_file.read().decode(
-                "utf-8",
-                errors="ignore"
-            )
-
-            return data
+"""
 
 
-        # PDF
-        if file_name.endswith(".pdf") and PDF_AVAILABLE:
-
-            reader = PdfReader(uploaded_file)
-
-            text = ""
-
-            for page in reader.pages:
-
-                page_text = page.extract_text()
-
-                if page_text:
-                    text += page_text + "\n"
-
-            return text
-
-    except Exception:
-        return ""
-
-    return ""
+    return generate_ai_response(prompt)
 
 
 # ============================================================
-# GEMINI RESPONSE
-# Retry + Fallback System
+# GATE PREPARATION
 # ============================================================
 
-def generate_ai_response(
-    user_prompt,
-    mode,
-    uploaded_image=None,
-    uploaded_file=None
+def gate_preparation(
+    branch,
+    topic,
+    days
 ):
 
-    api_key = get_api_key()
+    prompt = f"""
 
-    if not api_key:
+You are an expert GATE preparation mentor.
 
-        return (
-            "⚠️ Gemini API Key కనుగొనబడలేదు.\n\n"
-            "Streamlit Secrets లో:\n\n"
-            "GEMINI_API_KEY = \"YOUR_API_KEY\"\n\n"
-            "అని add చేయండి."
-        )
+Student Branch:
+{branch}
 
-    if not GENAI_AVAILABLE:
+Topic or Subject:
+{topic}
 
-        return (
-            "⚠️ Required Gemini package install కాలేదు.\n\n"
-            "requirements.txt లో:\n\n"
-            "google-genai\n\n"
-            "add చేయండి."
-        )
+Preparation Duration:
+{days} days
 
-    client = get_client(api_key)
+Create a complete GATE preparation plan.
 
-    if client is None:
+Include:
 
-        return (
-            "⚠️ AI service ప్రారంభించలేకపోయింది. "
-            "API Key మరియు internet connection చెక్ చేయండి."
-        )
+1. Subject Priority
+2. Important Topics
+3. Daily Study Plan
+4. Weekly Plan
+5. Concept Learning
+6. Numerical Practice
+7. Previous Year Questions
+8. Mock Tests
+9. Revision Plan
+10. Important Formulas
+11. Time Management
+12. Common Mistakes
+13. Final Week Strategy
 
+Also generate 5 practice MCQs with answers.
 
-    # --------------------------------------------------------
-    # GET MODELS
-    # --------------------------------------------------------
-
-    available_models = get_available_models(api_key)
-
-    if not available_models:
-
-        available_models = fallback_models()
-
-
-    # Remove duplicates
-    clean_models = []
-
-    for model in available_models:
-
-        if model not in clean_models:
-            clean_models.append(model)
-
-
-    # --------------------------------------------------------
-    # SYSTEM PROMPT
-    # --------------------------------------------------------
-
-    system_prompt = create_system_prompt(mode)
-
-
-    # --------------------------------------------------------
-    # FILE TEXT
-    # --------------------------------------------------------
-
-    file_text = ""
-
-    if uploaded_file is not None:
-
-        file_text = extract_file_text(uploaded_file)
-
-        if file_text:
-
-            # Limit huge files
-            file_text = file_text[:20000]
-
-            user_prompt += f"""
-
-FILE CONTENT:
-
-{file_text}
-
-Please analyze the uploaded file and answer the user's question.
+Make the plan practical and realistic.
 
 """
 
 
-    # --------------------------------------------------------
-    # CONTENT
-    # --------------------------------------------------------
-
-    contents = []
-
-    final_prompt = f"""
-
-{system_prompt}
-
-USER QUESTION:
-
-{user_prompt}
-
-"""
-
-
-    contents.append(final_prompt)
-
-
-    # Add image
-    if uploaded_image is not None and PIL_AVAILABLE:
-
-        try:
-
-            image = Image.open(uploaded_image)
-
-            contents.append(image)
-
-        except Exception:
-            pass
-
-
-    # --------------------------------------------------------
-    # RETRY SETTINGS
-    # --------------------------------------------------------
-
-    max_retries_per_model = 3
-
-    successful_errors = []
-
-
-    # --------------------------------------------------------
-    # TRY EACH MODEL
-    # --------------------------------------------------------
-
-    for model_name in clean_models:
-
-        for attempt in range(max_retries_per_model):
-
-            try:
-
-                response = client.models.generate_content(
-
-                    model=model_name,
-
-                    contents=contents,
-
-                    config=types.GenerateContentConfig(
-
-                        temperature=0.7,
-
-                        max_output_tokens=2048
-
-                    )
-
-                )
-
-
-                # Get response text
-                answer = getattr(response, "text", None)
-
-
-                if answer and answer.strip():
-
-                    return answer.strip()
-
-
-                # Empty response
-                successful_errors.append(
-                    f"{model_name}: empty response"
-                )
-
-
-            except Exception as e:
-
-                error_text = str(e).lower()
-
-                successful_errors.append(
-                    f"{model_name}: {error_text[:100]}"
-                )
-
-
-                # ------------------------------------------------
-                # 503 / High demand
-                # ------------------------------------------------
-
-                if (
-                    "503" in error_text
-                    or
-                    "unavailable" in error_text
-                    or
-                    "high demand" in error_text
-                    or
-                    "overloaded" in error_text
-                ):
-
-                    wait_time = min(
-                        2 ** attempt,
-                        8
-                    ) + random.uniform(0, 1)
-
-                    time.sleep(wait_time)
-
-                    continue
-
-
-                # ------------------------------------------------
-                # 429 / Rate limit
-                # ------------------------------------------------
-
-                elif (
-                    "429" in error_text
-                    or
-                    "rate limit" in error_text
-                    or
-                    "quota" in error_text
-                ):
-
-                    wait_time = min(
-                        3 ** attempt,
-                        10
-                    )
-
-                    time.sleep(wait_time)
-
-                    continue
-
-
-                # ------------------------------------------------
-                # 404 / Model not found
-                # Try next model
-                # ------------------------------------------------
-
-                elif (
-                    "404" in error_text
-                    or
-                    "not found" in error_text
-                    or
-                    "not supported" in error_text
-                ):
-
-                    break
-
-
-                # ------------------------------------------------
-                # Other errors
-                # ------------------------------------------------
-
-                else:
-
-                    if attempt < max_retries_per_model - 1:
-
-                        time.sleep(2)
-
-                        continue
-
-                    break
-
-
-    # --------------------------------------------------------
-    # FRIENDLY FALLBACK MESSAGE
-    # --------------------------------------------------------
-
-    return """
-
-⚠️ **AI ప్రస్తుతం కొద్దిసేపు busy గా ఉంది.**
-
-మీ question తప్పు కాదు మరియు app కూడా crash కాలేదు.
-
-దయచేసి కొన్ని seconds తర్వాత **Try Again** చేయండి.
-
-💡 Tip:
-- ఒకేసారి చాలా requests పంపవద్దు
-- Internet connection చెక్ చేయండి
-- API quota available ఉందో చూడండి
-
-"""
+    return generate_ai_response(prompt)
 
 
 # ============================================================
-# SAVE HISTORY
+# SPEAK TEXT
 # ============================================================
 
-def save_history(question, answer, mode):
+def speak_text(text):
 
-    item = {
+    clean_text = text.replace(
+        "\n",
+        " "
+    )
 
-        "time": datetime.now().strftime(
-            "%d-%m-%Y %H:%M"
-        ),
+    clean_text = clean_text.replace(
+        "`",
+        ""
+    )
 
-        "mode": mode,
+    clean_text = clean_text.replace(
+        "#",
+        ""
+    )
 
-        "question": question,
-
-        "answer": answer
-
-    }
-
-    st.session_state.history.append(item)
-
-
-# ============================================================
-# TEXT TO SPEECH
-# Browser Speech API
-# ============================================================
-
-def voice_html(text):
-
-    safe_text = json.dumps(text)
 
     html = f"""
 
 <script>
 
-let speechText = {safe_text};
+function speakText() {{
 
-window.techMithraSpeech = new SpeechSynthesisUtterance(
-    speechText
-);
-
-window.techMithraSpeech.rate = 1;
-window.techMithraSpeech.pitch = 1;
-
-function playSpeech() {{
     window.speechSynthesis.cancel();
 
-    window.techMithraSpeech =
-        new SpeechSynthesisUtterance(speechText);
+    let text =
+    `{clean_text}`;
 
-    window.techMithraSpeech.rate = 1;
-    window.techMithraSpeech.pitch = 1;
+    let speech =
+    new SpeechSynthesisUtterance(text);
 
-    window.speechSynthesis.speak(
-        window.techMithraSpeech
-    );
+    speech.rate = 1;
+
+    speech.pitch = 1;
+
+    window.speechSynthesis.speak(speech);
+
 }}
 
 function pauseSpeech() {{
+
     window.speechSynthesis.pause();
+
 }}
 
 function resumeSpeech() {{
+
     window.speechSynthesis.resume();
+
 }}
 
 </script>
 
 """
 
-    return html
+
+    st.components.v1.html(
+        html,
+        height=0
+    )
 
 
 # ============================================================
@@ -852,14 +919,21 @@ function resumeSpeech() {{
 
 with st.sidebar:
 
-    st.title("🤖 Tech Mithra AI")
+    st.markdown(
+        "# 🤖 Tech Mithra AI"
+    )
 
     st.caption(
-        "Student AI Assistant"
+        "Your Smart AI Assistant"
     )
+
 
     st.divider()
 
+
+    # --------------------------------------------------------
+    # OPTIONS
+    # --------------------------------------------------------
 
     options = [
 
@@ -878,58 +952,782 @@ with st.sidebar:
     ]
 
 
-    selected_display = st.radio(
+    selected_option = st.radio(
 
-        "Select Option",
+        "Choose an Option",
 
-        options
+        options,
+
+        index=options.index(
+            st.session_state.current_option
+        )
 
     )
 
 
-    # Remove emoji
-    selected_option = selected_display
-
-    if selected_display == "💬 AI Chat":
-        selected_option = "AI Chat"
-
-    elif selected_display == "📅 Event Planner":
-        selected_option = "Event Planner"
-
-    elif selected_display == "📝 Exam Helper":
-        selected_option = "Exam Helper"
-
-    elif selected_display == "🔬 Project & Lab Guide":
-        selected_option = "Project & Lab Guide"
-
-    elif selected_display == "🎓 GATE Preparation":
-        selected_option = "GATE Preparation"
-
-    elif selected_display == "⚙️ Settings":
-        selected_option = "Settings"
-
-
-    st.session_state.selected_option = selected_option
+    st.session_state.current_option = (
+        selected_option
+    )
 
 
     st.divider()
 
-    st.caption("Tech Mithra AI v1.0")
+
+    # --------------------------------------------------------
+    # HISTORY
+    # --------------------------------------------------------
+
+    with st.expander("🕘 Recent History"):
+
+        if st.session_state.history:
+
+            recent_history = (
+                st.session_state.history[-10:]
+            )
+
+            for item in reversed(recent_history):
+
+                if item["role"] == "user":
+
+                    text = item["content"]
+
+                    if len(text) > 40:
+
+                        text = text[:40] + "..."
+
+                    st.caption(
+                        "💬 " + text
+                    )
+
+        else:
+
+            st.caption(
+                "No history yet."
+            )
 
 
 # ============================================================
-# SETTINGS PAGE
+# HEADER
 # ============================================================
 
-if st.session_state.selected_option == "Settings":
+st.markdown(
+    '<div class="main-title">🤖 Tech Mithra AI</div>',
+    unsafe_allow_html=True
+)
 
-    st.title("⚙️ Settings")
 
-    st.subheader("🤖 AI Settings")
+st.markdown(
+    '<div class="subtitle">Ask anything • Upload Photo • Camera • Files • Voice</div>',
+    unsafe_allow_html=True
+)
 
-    language = st.selectbox(
 
-        "Language",
+# ============================================================
+# AI CHAT
+# ============================================================
+
+if selected_option == "💬 AI Chat":
+
+
+    st.subheader(
+        "💬 AI Chat"
+    )
+
+
+    # --------------------------------------------------------
+    # SHOW MESSAGES
+    # --------------------------------------------------------
+
+    for message in st.session_state.messages:
+
+
+        if message["role"] == "user":
+
+            with st.chat_message("user"):
+
+                st.write(
+                    message["content"]
+                )
+
+
+        elif message["role"] == "assistant":
+
+            with st.chat_message("assistant"):
+
+                st.markdown(
+                    message["content"]
+                )
+
+
+    # --------------------------------------------------------
+    # UPLOAD OPTIONS
+    # --------------------------------------------------------
+
+    with st.expander(
+        "➕ Upload Options"
+    ):
+
+        col1, col2 = st.columns(2)
+
+
+        with col1:
+
+            uploaded_file = st.file_uploader(
+
+                "📁 Upload File",
+
+                type=[
+
+                    "txt",
+                    "pdf",
+                    "docx",
+                    "jpg",
+                    "jpeg",
+                    "png"
+
+                ]
+
+            )
+
+
+        with col2:
+
+            camera_photo = st.camera_input(
+
+                "📸 Take a Photo"
+
+            )
+
+
+        # ----------------------------------------------------
+        # AUDIO
+        # ----------------------------------------------------
+
+        try:
+
+            audio_input = st.audio_input(
+                "🎤 Microphone"
+            )
+
+        except Exception:
+
+            audio_input = None
+
+            st.caption(
+                "🎤 Microphone feature depends on your Streamlit version."
+            )
+
+
+        if uploaded_file:
+
+            st.success(
+                "File uploaded successfully."
+            )
+
+
+        if camera_photo:
+
+            st.success(
+                "Photo captured successfully."
+            )
+
+
+        if audio_input:
+
+            st.success(
+                "Audio recorded successfully."
+            )
+
+
+    # --------------------------------------------------------
+    # CHAT INPUT
+    # --------------------------------------------------------
+
+    user_question = st.chat_input(
+
+        "Message Tech Mithra AI..."
+
+    )
+
+
+    if user_question:
+
+
+        # USER MESSAGE
+        with st.chat_message("user"):
+
+            st.write(
+                user_question
+            )
+
+
+        add_to_history(
+
+            "user",
+
+            user_question
+
+        )
+
+
+        # ASSISTANT
+        with st.chat_message("assistant"):
+
+
+            with st.spinner(
+                "Tech Mithra AI is thinking..."
+            ):
+
+
+                answer = normal_ai_chat(
+                    user_question
+                )
+
+
+                st.markdown(
+                    answer
+                )
+
+
+        add_to_history(
+
+            "assistant",
+
+            answer
+
+        )
+
+
+        # ----------------------------------------------------
+        # VOICE CONTROLS
+        # ----------------------------------------------------
+
+        if st.session_state.voice_enabled:
+
+
+            st.divider()
+
+
+            st.markdown(
+                "### 🔊 AI Voice"
+            )
+
+
+            voice_col1, voice_col2, voice_col3 = (
+                st.columns(3)
+            )
+
+
+            with voice_col1:
+
+                if st.button(
+                    "🔊 Play",
+                    key="play_voice"
+                ):
+
+                    speak_text(answer)
+
+                    st.success(
+                        "Voice started."
+                    )
+
+
+            with voice_col2:
+
+                if st.button(
+                    "⏸ Pause",
+                    key="pause_voice"
+                ):
+
+                    st.components.v1.html(
+
+                        """
+
+<script>
+
+window.parent.speechSynthesis.pause();
+
+</script>
+
+                        """,
+
+                        height=0
+
+                    )
+
+                    st.info(
+                        "Voice paused."
+                    )
+
+
+            with voice_col3:
+
+                if st.button(
+                    "▶ Resume",
+                    key="resume_voice"
+                ):
+
+                    st.components.v1.html(
+
+                        """
+
+<script>
+
+window.parent.speechSynthesis.resume();
+
+</script>
+
+                        """,
+
+                        height=0
+
+                    )
+
+                    st.success(
+                        "Voice resumed."
+                    )
+
+
+# ============================================================
+# EVENT PLANNER
+# ============================================================
+
+elif selected_option == "📅 Event Planner":
+
+
+    st.header(
+        "📅 Event Planner"
+    )
+
+
+    st.write(
+        "Plan your complete event from beginning to ending."
+    )
+
+
+    event_name = st.text_input(
+
+        "🎉 Event Name",
+
+        placeholder=
+        "Example: College Farewell Party"
+
+    )
+
+
+    col1, col2 = st.columns(2)
+
+
+    with col1:
+
+        budget = st.text_input(
+
+            "💰 Budget",
+
+            placeholder=
+            "Example: ₹50,000"
+
+        )
+
+
+    with col2:
+
+        guests = st.number_input(
+
+            "👥 Expected Guests",
+
+            min_value=1,
+
+            value=100
+
+        )
+
+
+    location = st.text_input(
+
+        "📍 Event Location",
+
+        placeholder=
+        "Example: College Auditorium"
+
+    )
+
+
+    if st.button(
+        "✨ Create Complete Event Plan",
+        type="primary"
+    ):
+
+
+        if event_name:
+
+
+            with st.spinner(
+                "Creating your complete event plan..."
+            ):
+
+
+                answer = event_planner(
+
+                    event_name,
+
+                    budget,
+
+                    guests,
+
+                    location
+
+                )
+
+
+                st.markdown(
+                    answer
+                )
+
+
+                add_to_history(
+
+                    "user",
+
+                    "Event Planner: "
+                    + event_name
+
+                )
+
+
+                add_to_history(
+
+                    "assistant",
+
+                    answer
+
+                )
+
+
+        else:
+
+            st.warning(
+                "Please enter the Event Name."
+            )
+
+
+# ============================================================
+# EXAM HELPER
+# ============================================================
+
+elif selected_option == "📝 Exam Helper":
+
+
+    st.header(
+        "📝 Exam Helper"
+    )
+
+
+    st.write(
+        "Get exam answers, long answers and MCQs."
+    )
+
+
+    answer_type = st.selectbox(
+
+        "Select Answer Type",
+
+        [
+
+            "Short Answer",
+
+            "Long Answer",
+
+            "MCQs",
+
+            "MCQs With Answers"
+
+        ]
+
+    )
+
+
+    question = st.text_area(
+
+        "Enter Your Question or Topic",
+
+        placeholder=
+        "Example: Explain the evolution of management"
+
+    )
+
+
+    if st.button(
+
+        "📚 Generate Answer",
+
+        type="primary"
+
+    ):
+
+
+        if question:
+
+
+            with st.spinner(
+                "Preparing your exam answer..."
+            ):
+
+
+                answer = exam_helper(
+
+                    question,
+
+                    answer_type
+
+                )
+
+
+                st.markdown(
+                    answer
+                )
+
+
+                add_to_history(
+
+                    "user",
+
+                    "Exam Helper: "
+                    + question
+
+                )
+
+
+                add_to_history(
+
+                    "assistant",
+
+                    answer
+
+                )
+
+
+        else:
+
+            st.warning(
+                "Please enter a question."
+            )
+
+
+# ============================================================
+# PROJECT AND LAB GUIDE
+# ============================================================
+
+elif selected_option == "🔬 Project & Lab Guide":
+
+
+    st.header(
+        "🔬 Project & Lab Guide"
+    )
+
+
+    st.write(
+        "Get complete project guidance and laboratory assistance."
+    )
+
+
+    project_question = st.text_area(
+
+        "Enter Project or Lab Question",
+
+        placeholder=
+        "Example: Give an IoT based smart irrigation project"
+
+    )
+
+
+    if st.button(
+
+        "🔬 Generate Project Guide",
+
+        type="primary"
+
+    ):
+
+
+        if project_question:
+
+
+            with st.spinner(
+                "Creating your project guide..."
+            ):
+
+
+                answer = project_lab_guide(
+                    project_question
+                )
+
+
+                st.markdown(
+                    answer
+                )
+
+
+                add_to_history(
+
+                    "user",
+
+                    "Project Guide: "
+                    + project_question
+
+                )
+
+
+                add_to_history(
+
+                    "assistant",
+
+                    answer
+
+                )
+
+
+        else:
+
+            st.warning(
+                "Please enter your project topic."
+            )
+
+
+# ============================================================
+# GATE PREPARATION
+# ============================================================
+
+elif selected_option == "🎓 GATE Preparation":
+
+
+    st.header(
+        "🎓 GATE Preparation"
+    )
+
+
+    st.write(
+        "Create your personalized GATE preparation plan."
+    )
+
+
+    gate_branch = st.selectbox(
+
+        "Select Your Branch",
+
+        [
+
+            "Computer Science",
+
+            "Electrical Engineering",
+
+            "Electronics and Communication",
+
+            "Mechanical Engineering",
+
+            "Civil Engineering",
+
+            "Other"
+
+        ]
+
+    )
+
+
+    gate_topic = st.text_input(
+
+        "Subject or Topic",
+
+        placeholder=
+        "Example: Network Theory"
+
+    )
+
+
+    preparation_days = st.number_input(
+
+        "Preparation Duration (Days)",
+
+        min_value=1,
+
+        value=90
+
+    )
+
+
+    if st.button(
+
+        "🎯 Create GATE Study Plan",
+
+        type="primary"
+
+    ):
+
+
+        with st.spinner(
+            "Creating your GATE preparation plan..."
+        ):
+
+
+            answer = gate_preparation(
+
+                gate_branch,
+
+                gate_topic,
+
+                preparation_days
+
+            )
+
+
+            st.markdown(
+                answer
+            )
+
+
+            add_to_history(
+
+                "user",
+
+                "GATE Preparation: "
+                + gate_topic
+
+            )
+
+
+            add_to_history(
+
+                "assistant",
+
+                answer
+
+            )
+
+
+# ============================================================
+# SETTINGS
+# ============================================================
+
+elif selected_option == "⚙️ Settings":
+
+
+    st.header(
+        "⚙️ Settings"
+    )
+
+
+    # --------------------------------------------------------
+    # AI SETTINGS
+    # --------------------------------------------------------
+
+    st.subheader(
+        "🤖 AI Settings"
+    )
+
+
+    st.session_state.language = st.selectbox(
+
+        "🌐 Language",
 
         [
 
@@ -955,507 +1753,218 @@ if st.session_state.selected_option == "Settings":
 
     )
 
-    st.session_state.language = language
 
+    # --------------------------------------------------------
+    # VOICE SETTINGS
+    # --------------------------------------------------------
 
-    st.divider()
-
-
-    # ========================================================
-    # HISTORY
-    # ========================================================
-
-    st.subheader("📜 History")
-
-    st.caption(
-        "History ఈ session లో save అవుతుంది."
+    st.subheader(
+        "🔊 Voice Settings"
     )
 
 
-    if len(st.session_state.history) == 0:
+    st.session_state.voice_enabled = st.toggle(
 
-        st.info(
-            "ఇంకా History లేదు."
+        "Enable AI Voice",
+
+        value=
+        st.session_state.voice_enabled
+
+    )
+
+
+    if st.session_state.voice_enabled:
+
+        st.success(
+            "AI Voice is Enabled."
         )
 
     else:
 
-        for index, item in enumerate(
-            reversed(st.session_state.history)
+        st.warning(
+            "AI Voice is Disabled."
+        )
+
+
+    # --------------------------------------------------------
+    # HISTORY
+    # --------------------------------------------------------
+
+    st.divider()
+
+
+    st.subheader(
+        "🕘 Chat History"
+    )
+
+
+    st.write(
+        f"Total History Messages: "
+        f"{len(st.session_state.history)}"
+    )
+
+
+    if st.session_state.history:
+
+
+        with st.expander(
+            "📜 View History"
         ):
 
-            with st.expander(
 
-                f"{item['mode']} | {item['time']}"
-
+            for item in reversed(
+                st.session_state.history[-50:]
             ):
 
-                st.markdown(
-                    "**Question:**"
+
+                if item["role"] == "user":
+
+                    st.markdown(
+                        f"**👤 You:** "
+                        f"{item['content']}"
+                    )
+
+
+                else:
+
+                    st.markdown(
+                        f"**🤖 Tech Mithra AI:** "
+                        f"{item['content'][:300]}"
+                    )
+
+
+                st.caption(
+                    item["time"]
                 )
 
-                st.write(
-                    item["question"]
-                )
 
-                st.markdown(
-                    "**Answer:**"
-                )
+                st.divider()
 
-                st.write(
-                    item["answer"]
-                )
 
+    else:
+
+        st.info(
+            "No history available."
+        )
+
+
+    # --------------------------------------------------------
+    # CLEAR HISTORY
+    # --------------------------------------------------------
 
     if st.button(
-        "🗑️ Clear History"
+        "🗑️ Clear All History",
+        type="secondary"
     ):
+
 
         st.session_state.history = []
 
+        st.session_state.messages = []
+
+
+        try:
+
+            if os.path.exists(
+                HISTORY_FILE
+            ):
+
+                os.remove(
+                    HISTORY_FILE
+                )
+
+        except Exception:
+
+            pass
+
+
         st.success(
-            "History Cleared Successfully!"
+            "History cleared successfully."
         )
+
 
         st.rerun()
 
 
+    # --------------------------------------------------------
+    # APPLICATION INFO
+    # --------------------------------------------------------
+
     st.divider()
 
 
-    # ========================================================
-    # APP INFORMATION
-    # ========================================================
-
     st.subheader(
-        "ℹ️ App Information"
+        "ℹ️ Application Information"
     )
+
 
     st.write(
-        "Tech Mithra AI is designed to help students "
-        "with learning, exams, projects, GATE preparation "
-        "and event planning."
-    )
 
+        """
 
-    st.stop()
+**Application Name:** Tech Mithra AI
 
+**Features:**
 
-# ============================================================
-# MAIN HEADER
-# ============================================================
+- AI Chat
+- Event Planner
+- Exam Helper
+- MCQs with Answers
+- Project & Lab Guide
+- GATE Preparation
+- Photo Upload
+- Camera
+- File Upload
+- Microphone Support
+- AI Voice
+- Chat History
 
-st.markdown(
-    '<div class="main-title">💬 Tech Mithra AI</div>',
-    unsafe_allow_html=True
-)
-
-
-st.markdown(
-    f'<div class="sub-title">{st.session_state.selected_option}</div>',
-    unsafe_allow_html=True
-)
-
-
-st.divider()
-
-
-# ============================================================
-# MODE INTRODUCTION
-# ============================================================
-
-mode = st.session_state.selected_option
-
-
-if mode == "Event Planner":
-
-    st.info(
-        "📅 Event name, budget, number of people and event type ఇవ్వండి. "
-        "AI మీకు starting నుండి ending వరకు complete plan ఇస్తుంది."
-    )
-
-
-elif mode == "Exam Helper":
-
-    st.info(
-        "📝 Questions, MCQs, short answers, long answers లేదా exam preparation అడగండి."
-    )
-
-
-elif mode == "Project & Lab Guide":
-
-    st.info(
-        "🔬 Project idea, abstract, components, procedure లేదా viva questions అడగండి."
-    )
-
-
-elif mode == "GATE Preparation":
-
-    st.info(
-        "🎓 మీ branch మరియు available preparation time ఇవ్వండి."
-    )
-
-
-# ============================================================
-# CHAT HISTORY
-# ============================================================
-
-for message in st.session_state.messages:
-
-    with st.chat_message(
-        message["role"]
-    ):
-
-        st.markdown(
-            message["content"]
-        )
-
-
-# ============================================================
-# PLUS OPTIONS
-# ============================================================
-
-with st.expander(
-    "➕ Upload Photo • Camera • Files"
-):
-
-    upload_tab1, upload_tab2, upload_tab3 = st.tabs(
-
-        [
-
-            "🖼️ Upload Photo",
-
-            "📷 Camera",
-
-            "📁 Files"
-
-        ]
+"""
 
     )
 
 
-    with upload_tab1:
-
-        uploaded_photo = st.file_uploader(
-
-            "Upload Photo",
-
-            type=[
-
-                "jpg",
-
-                "jpeg",
-
-                "png",
-
-                "webp"
-
-            ],
-
-            key="photo_upload"
-
-        )
-
-
-    with upload_tab2:
-
-        camera_photo = st.camera_input(
-
-            "Take Photo"
-
-        )
-
-
-    with upload_tab3:
-
-        uploaded_file = st.file_uploader(
-
-            "Upload File",
-
-            type=[
-
-                "txt",
-
-                "pdf",
-
-                "csv",
-
-                "json",
-
-                "md"
-
-            ],
-
-            key="file_upload"
-
-        )
-
-
-# ============================================================
-# MICROPHONE
-# ============================================================
-
-with st.expander(
-    "🎤 Microphone"
-):
-
-    st.caption(
-        "Voice recording upload చేయవచ్చు."
-    )
-
-    try:
-
-        audio_data = st.audio_input(
-            "Record your voice"
-        )
-
-        if audio_data:
-
-            st.audio(audio_data)
-
-            st.info(
-                "Voice recording captured successfully. "
-                "Please type your question below."
-            )
-
-    except Exception:
-
-        st.info(
-            "Microphone feature మీ Streamlit version లో available లేదు."
-        )
-
-
-# ============================================================
-# CHAT INPUT
-# ============================================================
-
-user_question = st.chat_input(
-
-    "Ask anything..."
-
-)
-
-
-# ============================================================
-# PROCESS QUESTION
-# ============================================================
-
-if user_question:
-
     # --------------------------------------------------------
-    # USER MESSAGE
+    # MODEL INFORMATION
     # --------------------------------------------------------
-
-    st.session_state.messages.append({
-
-        "role": "user",
-
-        "content": user_question
-
-    })
-
-
-    with st.chat_message(
-        "user"
-    ):
-
-        st.markdown(
-            user_question
-        )
-
-
-    # --------------------------------------------------------
-    # SELECT IMAGE
-    # --------------------------------------------------------
-
-    final_image = None
-
-
-    if "uploaded_photo" in locals():
-
-        if uploaded_photo is not None:
-
-            final_image = uploaded_photo
-
-
-    if "camera_photo" in locals():
-
-        if camera_photo is not None:
-
-            final_image = camera_photo
-
-
-    # --------------------------------------------------------
-    # AI RESPONSE
-    # --------------------------------------------------------
-
-    with st.chat_message(
-        "assistant"
-    ):
-
-        with st.spinner(
-            "🤖 Tech Mithra AI is thinking..."
-        ):
-
-            answer = generate_ai_response(
-
-                user_prompt=user_question,
-
-                mode=mode,
-
-                uploaded_image=final_image,
-
-                uploaded_file=(
-                    uploaded_file
-                    if "uploaded_file" in locals()
-                    else None
-                )
-
-            )
-
-
-        st.markdown(
-            answer
-        )
-
-
-    # --------------------------------------------------------
-    # SAVE MESSAGE
-    # --------------------------------------------------------
-
-    st.session_state.messages.append({
-
-        "role": "assistant",
-
-        "content": answer
-
-    })
-
-
-    # --------------------------------------------------------
-    # SAVE HISTORY
-    # --------------------------------------------------------
-
-    save_history(
-
-        user_question,
-
-        answer,
-
-        mode
-
-    )
-
-
-    # --------------------------------------------------------
-    # SAVE LAST ANSWER
-    # --------------------------------------------------------
-
-    st.session_state.last_answer = answer
-
-
-# ============================================================
-# VOICE CONTROLS
-# ============================================================
-
-if st.session_state.last_answer:
 
     st.divider()
 
+
     st.subheader(
-        "🔊 AI Voice"
+        "🤖 AI Connection"
     )
 
 
-    st.components.v1.html(
+    if get_api_key():
 
-        voice_html(
-            st.session_state.last_answer
-        ),
-
-        height=0
-
-    )
+        st.success(
+            "Gemini API Key Found."
+        )
 
 
-    col1, col2, col3 = st.columns(3)
+        model = find_working_model()
 
 
-    with col1:
+        if model:
 
-        if st.button(
-            "🔊 Play"
-        ):
+            st.info(
+                f"Selected Model: {model}"
+            )
 
-            st.components.v1.html(
+        else:
 
-                f"""
-
-<script>
-
-let text =
-{json.dumps(st.session_state.last_answer)};
-
-let speech =
-new SpeechSynthesisUtterance(text);
-
-window.speechSynthesis.cancel();
-
-window.speechSynthesis.speak(speech);
-
-</script>
-
-""",
-
-                height=0
-
+            st.warning(
+                "AI model will be detected automatically when available."
             )
 
 
-    with col2:
+    else:
 
-        if st.button(
-            "⏸ Pause"
-        ):
-
-            st.components.v1.html(
-
-                """
-
-<script>
-
-window.speechSynthesis.pause();
-
-</script>
-
-""",
-
-                height=0
-
-            )
-
-
-    with col3:
-
-        if st.button(
-            "▶ Resume"
-        ):
-
-            st.components.v1.html(
-
-                """
-
-<script>
-
-window.speechSynthesis.resume();
-
-</script>
-
-""",
-
-                height=0
-
-            )
+        st.warning(
+            "Gemini API Key not found. "
+            "The application will use fallback mode."
+        )
 
 
 # ============================================================
@@ -1464,6 +1973,7 @@ window.speechSynthesis.resume();
 
 st.divider()
 
+
 st.caption(
-    "🤖 Tech Mithra AI • Student Learning Assistant"
+    "🤖 Tech Mithra AI • Smart Learning Assistant"
 )
