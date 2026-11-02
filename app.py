@@ -1,1263 +1,309 @@
 import streamlit as st
-import os
-import time
-
-# =========================================================
-# TECH MITHRA AI
-# =========================================================
+import plotly.graph_objects as go
 
 st.set_page_config(
     page_title="Tech Mithra AI",
-    page_icon="🚀",
+    page_icon="⚡",
     layout="wide"
 )
 
-# =========================================================
-# GEMINI SETUP
-# =========================================================
+st.markdown("""
+<style>
+.stApp {
+    background: #0b1020;
+    color: white;
+}
+h1,h2,h3 {
+    color: #00d4ff;
+}
+div.stButton > button {
+    background: #087ea4;
+    color: white;
+    border-radius: 10px;
+    width: 100%;
+}
+</style>
+""", unsafe_allow_html=True)
 
-try:
-    from google import genai
-except ImportError:
-    st.error("google-genai package is not installed.")
-    st.stop()
+# MACHINE DATABASE
 
+machines = {
+    "DC Machines": {
+        "parts": {
+            "Yoke": "Provides mechanical support and acts as a magnetic path.",
+            "Pole Core": "Carries the field winding and produces magnetic flux.",
+            "Field Winding": "Produces the magnetic field.",
+            "Armature Core": "Provides a path for magnetic flux.",
+            "Armature Winding": "Conductors in which EMF is induced.",
+            "Commutator": "Converts internally induced AC into DC at the terminals.",
+            "Brushes": "Transfer current between the rotating commutator and external circuit."
+        },
+        "working": "DC machine works on electromagnetic induction as a generator and force on a current-carrying conductor as a motor.",
+        "applications": "Electric traction, battery charging, cranes and industrial drives.",
+        "notes": "DC machines are classified into DC generators and DC motors. Important equations: Eb = PΦZN/60A and T ∝ ΦIa.",
+        "viva": [
+            "What is a DC machine?",
+            "What is the function of a commutator?",
+            "What is back EMF?",
+            "What is armature reaction?",
+            "What are the types of DC motors?"
+        ]
+    },
 
-# =========================================================
-# API KEY
-# =========================================================
+    "Transformer": {
+        "parts": {
+            "Magnetic Core": "Provides a low reluctance path for magnetic flux.",
+            "Primary Winding": "Receives electrical energy from the AC supply.",
+            "Secondary Winding": "Delivers electrical energy to the load.",
+            "Insulation": "Prevents electrical leakage between windings.",
+            "Transformer Oil": "Provides cooling and insulation in oil-filled transformers.",
+            "Tank": "Houses and protects the transformer.",
+            "Bushing": "Provides insulated terminals for electrical connections."
+        },
+        "working": "Transformer works on mutual electromagnetic induction. AC in the primary winding produces changing flux that induces EMF in the secondary winding.",
+        "applications": "Power transmission, distribution, chargers and electrical isolation.",
+        "notes": "EMF equation: E = 4.44 f N Φm. Turns ratio: V1/V2 = N1/N2 for an ideal transformer.",
+        "viva": [
+            "What is a transformer?",
+            "What is mutual induction?",
+            "What are transformer losses?",
+            "Why is transformer oil used?",
+            "What is the turns ratio?"
+        ]
+    },
 
-API_KEY = None
+    "Three Phase Induction Motor": {
+        "parts": {
+            "Stator": "Stationary part that produces a rotating magnetic field.",
+            "Rotor": "Rotating part that develops mechanical torque.",
+            "Air Gap": "Small gap between stator and rotor.",
+            "Shaft": "Transfers mechanical power.",
+            "Bearings": "Support smooth shaft rotation.",
+            "Fan": "Provides cooling.",
+            "Frame": "Provides mechanical protection."
+        },
+        "working": "A three-phase supply creates a rotating magnetic field. This induces rotor current and produces electromagnetic torque.",
+        "applications": "Pumps, fans, compressors and industrial machinery.",
+        "notes": "Synchronous speed Ns = 120f/P. Slip s = (Ns-N)/Ns.",
+        "viva": [
+            "What is an induction motor?",
+            "Define slip.",
+            "What is synchronous speed?",
+            "Why can an induction motor not run at synchronous speed?",
+            "What is a squirrel cage rotor?"
+        ]
+    },
 
-try:
-    API_KEY = st.secrets.get("GEMINI_API_KEY")
-except:
-    pass
+    "Single Phase Induction Motor": {
+        "parts": {
+            "Stator": "Produces the magnetic field.",
+            "Main Winding": "Provides the main magnetic field.",
+            "Auxiliary Winding": "Helps in starting.",
+            "Capacitor": "Creates phase difference for starting in capacitor motors.",
+            "Rotor": "Develops mechanical torque.",
+            "Centrifugal Switch": "Disconnects the starting winding in applicable designs."
+        },
+        "working": "A single-phase supply produces a pulsating magnetic field. Starting arrangements create the required starting torque.",
+        "applications": "Ceiling fans, pumps, refrigerators and washing machines.",
+        "notes": "Single-phase induction motors are not inherently self-starting. Common types include split-phase, capacitor-start and shaded-pole motors.",
+        "viva": [
+            "Why is a single-phase motor not self-starting?",
+            "What is the function of a capacitor?",
+            "What is a shaded-pole motor?",
+            "What is a split-phase motor?",
+            "Where are single-phase motors used?"
+        ]
+    },
 
-if not API_KEY:
-    API_KEY = os.getenv("GEMINI_API_KEY")
+    "Synchronous Machines": {
+        "parts": {
+            "Stator": "Contains the armature winding.",
+            "Rotor": "Carries the field system.",
+            "Field Winding": "Produces rotor magnetic flux.",
+            "Damper Winding": "Helps with starting in applicable motors and reduces oscillations.",
+            "Shaft": "Transfers mechanical power.",
+            "Bearings": "Support the rotor."
+        },
+        "working": "The rotor magnetic field locks with the rotating stator magnetic field and runs at synchronous speed.",
+        "applications": "Power generation, power factor correction and industrial drives.",
+        "notes": "Synchronous speed Ns = 120f/P. Power factor can be controlled by field excitation.",
+        "viva": [
+            "What is a synchronous machine?",
+            "Define synchronous speed.",
+            "What is excitation?",
+            "What is a synchronous condenser?",
+            "What is hunting?"
+        ]
+    },
 
+    "Alternator": {
+        "parts": {
+            "Stator Core": "Provides a magnetic path and supports the armature winding.",
+            "Armature Winding": "Generates three-phase EMF.",
+            "Rotor": "Carries the DC field winding.",
+            "Field Winding": "Produces the rotor magnetic field.",
+            "Slip Rings": "Supply DC excitation to applicable rotor designs.",
+            "Shaft": "Receives mechanical input.",
+            "Cooling System": "Removes heat."
+        },
+        "working": "Mechanical rotation of the rotor field induces alternating EMF in the stationary stator winding.",
+        "applications": "Thermal, hydro and wind power generation.",
+        "notes": "Frequency f = PN/120. EMF equation: E = 4.44 Kp Kd Φ T f per phase.",
+        "viva": [
+            "What is an alternator?",
+            "Why is the armature placed on the stator?",
+            "What is voltage regulation?",
+            "What is an EMF equation?",
+            "What is the function of excitation?"
+        ]
+    },
 
-# =========================================================
-# AI FUNCTION
-# =========================================================
-
-def ask_ai(prompt):
-
-    if not API_KEY:
-        return (
-            "❌ API Key not found.\n\n"
-            "Please add GEMINI_API_KEY in Streamlit Secrets."
-        )
-
-    try:
-
-        client = genai.Client(
-            api_key=API_KEY
-        )
-
-        # Current Gemini model
-        response = client.models.generate_content(
-            model="gemini-3.7-flash",
-            contents=prompt
-        )
-
-        if response and response.text:
-            return response.text
-
-        return "⚠️ AI returned an empty response. Please try again."
-
-    except Exception as e:
-
-        error_text = str(e)
-
-        # Retry with another supported model
-        try:
-
-            client = genai.Client(
-                api_key=API_KEY
-            )
-
-            response = client.models.generate_content(
-                model="gemini-3.6-flash",
-                contents=prompt
-            )
-
-            if response and response.text:
-                return response.text
-
-        except Exception as second_error:
-            error_text = str(second_error)
-
-        # Friendly error messages
-
-        if "503" in error_text:
-            return (
-                "⚠️ AI service is temporarily busy.\n\n"
-                "Please wait a few seconds and try again."
-            )
-
-        if "429" in error_text:
-            return (
-                "⚠️ Too many requests.\n\n"
-                "Please wait for a moment and try again."
-            )
-
-        if "401" in error_text or "403" in error_text:
-            return (
-                "❌ API Key error.\n\n"
-                "Please check your GEMINI_API_KEY."
-            )
-
-        if "404" in error_text:
-            return (
-                "❌ Model error.\n\n"
-                "Please update the google-genai package."
-            )
-
-        return (
-            "❌ AI Service Error\n\n"
-            f"Details: {error_text}"
-        )
-
-
-# =========================================================
-# SESSION STATE
-# =========================================================
-
-if "history" not in st.session_state:
-    st.session_state.history = []
-
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-
-# =========================================================
-# HISTORY FUNCTION
-# =========================================================
-
-def save_history(question, answer, section):
-
-    item = {
-        "section": section,
-        "question": question,
-        "answer": answer
+    "Special Electrical Machines": {
+        "parts": {
+            "Stepper Motor": "Moves through fixed angular steps.",
+            "Servo Motor": "Provides controlled position or speed.",
+            "BLDC Motor": "Uses electronic commutation.",
+            "Reluctance Motor": "Produces torque due to magnetic reluctance.",
+            "Universal Motor": "Can operate on AC or DC supply within its ratings."
+        },
+        "working": "Special machines use different electromagnetic principles and electronic control techniques depending on their construction.",
+        "applications": "Robotics, automation, CNC machines and electric vehicles.",
+        "notes": "Important types include stepper motors, servo motors, BLDC motors and switched reluctance motors.",
+        "viva": [
+            "What is a BLDC motor?",
+            "What is a stepper motor?",
+            "What is a servo motor?",
+            "What is reluctance torque?",
+            "Where are special machines used?"
+        ]
     }
+}
 
-    st.session_state.history.append(item)
+# HOME
 
+st.title("⚡ TECH MITHRA AI")
+st.subheader("B.Tech Electrical & Electronics Engineering")
+st.write("Your Digital Electrical Machines Laboratory")
 
-# =========================================================
-# SIDEBAR
-# =========================================================
+st.markdown("---")
 
-st.sidebar.title("🤖 Tech Mithra AI")
+st.header("⚡ Electrical Machines")
 
-st.sidebar.markdown("---")
-
-option = st.sidebar.radio(
-
-    "Choose an option",
-
-    [
-        "💬 AI Chat",
-        "📅 Event Planner",
-        "🎓 Exam Helper",
-        "🧪 Project & Lab Guide",
-        "📚 GATE Preparation",
-        "⚙️ Settings"
-    ]
-
+machine = st.selectbox(
+    "Select Electrical Machine",
+    list(machines.keys())
 )
 
-st.sidebar.markdown("---")
+data = machines[machine]
 
-st.sidebar.caption("Tech Mithra AI")
+st.markdown("---")
 
+st.header("📚 " + machine)
 
-# =========================================================
-# TITLE
-# =========================================================
+# TABS
 
-st.title("🤖 Tech Mithra AI")
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+    "3D View",
+    "Parts",
+    "Working",
+    "Notes",
+    "Applications",
+    "Viva"
+])
 
-st.caption(
-    "Ask Anything • Upload Photo • Camera • Files"
-)
+# 3D VIEW
 
+with tab1:
+    st.subheader("Interactive 3D Learning Model")
 
-# =========================================================
-# AI CHAT
-# =========================================================
-
-if option == "💬 AI Chat":
-
-    st.subheader("💬 AI Chat")
-
-    # Display previous messages
-
-    for message in st.session_state.messages:
-
-        with st.chat_message(message["role"]):
-
-            st.markdown(message["content"])
-
-
-    # Chat input
-
-    prompt = st.chat_input(
-        "Ask anything..."
+    st.info(
+        "Use mouse or touch to rotate and zoom the 3D schematic. "
+        "These are educational component markers, not manufacturing CAD models."
     )
 
+    part_names = list(data["parts"].keys())
 
-    # PLUS OPTIONS
+    fig = go.Figure()
 
-    with st.expander("➕ Upload Options"):
+    for i, part in enumerate(part_names):
 
-        uploaded_photo = st.file_uploader(
-            "📷 Upload Photo",
-            type=["png", "jpg", "jpeg"]
-        )
+        fig.add_trace(go.Scatter3d(
+            x=[i % 3],
+            y=[i // 3],
+            z=[i * 0.4],
+            mode="markers+text",
+            marker=dict(
+                size=15,
+                color=i * 40,
+                colorscale="Turbo"
+            ),
+            text=[part],
+            textposition="top center",
+            name=part
+        ))
 
-        camera_photo = st.camera_input(
-            "📸 Camera"
-        )
-
-        uploaded_file = st.file_uploader(
-            "📁 Upload File",
-            type=["pdf", "txt", "docx"],
-            key="chat_file"
-        )
-
-
-    if prompt:
-
-        st.session_state.messages.append(
-            {
-                "role": "user",
-                "content": prompt
-            }
-        )
-
-
-        with st.chat_message("user"):
-
-            st.markdown(prompt)
-
-
-        with st.chat_message("assistant"):
-
-            with st.spinner("Tech Mithra AI is thinking..."):
-
-                full_prompt = f"""
-
-You are Tech Mithra AI.
-
-Answer the user's question clearly.
-
-User Question:
-
-{prompt}
-
-Give a useful, simple and detailed answer.
-
-"""
-
-                answer = ask_ai(full_prompt)
-
-                st.markdown(answer)
-
-
-        st.session_state.messages.append(
-            {
-                "role": "assistant",
-                "content": answer
-            }
-        )
-
-        save_history(
-            prompt,
-            answer,
-            "AI Chat"
-        )
-
-
-# =========================================================
-# EVENT PLANNER
-# =========================================================
-
-elif option == "📅 Event Planner":
-
-    st.subheader("📅 Complete Event Planner")
-
-    st.write(
-        "Plan your event from starting to ending."
+    fig.update_layout(
+        height=500,
+        paper_bgcolor="#0b1020",
+        font=dict(color="white"),
+        scene=dict(
+            bgcolor="#0b1020",
+            xaxis_title="X",
+            yaxis_title="Y",
+            zaxis_title="Z"
+        ),
+        margin=dict(l=0, r=0, b=0, t=20)
     )
 
-
-    event_name = st.text_input(
-        "Event Name"
+    st.plotly_chart(
+        fig,
+        use_container_width=True
     )
 
-    event_type = st.selectbox(
+# PARTS
 
-        "Event Type",
+with tab2:
+    st.subheader("🔩 Parts & Components")
 
-        [
-            "College Event",
-            "Technical Event",
-            "Workshop",
-            "Seminar",
-            "Cultural Event",
-            "Birthday Event",
-            "Wedding Event",
-            "Other"
-        ]
-
+    selected_part = st.selectbox(
+        "Select Component",
+        part_names
     )
 
-    participants = st.number_input(
+    st.markdown("### " + selected_part)
 
-        "Expected Participants",
+    st.write(data["parts"][selected_part])
 
-        min_value=1,
-        value=50
+    st.success("Component details")
 
-    )
+# WORKING
 
-    event_date = st.date_input(
-        "Event Date"
-    )
+with tab3:
+    st.subheader("⚙️ Working Principle")
+    st.write(data["working"])
 
-    event_place = st.text_input(
-        "Event Location"
-    )
+# NOTES
 
+with tab4:
+    st.subheader("📝 Complete Notes")
+    st.write(data["notes"])
 
-    if st.button(
-        "🚀 Generate Complete Event Plan"
-    ):
+# APPLICATIONS
 
-        if not event_name:
+with tab5:
+    st.subheader("🔬 Applications")
+    st.write(data["applications"])
 
-            st.warning(
-                "Please enter Event Name."
-            )
+# VIVA
 
-        else:
+with tab6:
+    st.subheader("🎯 Viva Questions")
 
-            with st.spinner(
-                "Creating complete event organization plan..."
-            ):
-
-                prompt = f"""
-
-You are a professional Event Organizer.
-
-Create a COMPLETE EVENT PLAN.
-
-Event Name:
-{event_name}
-
-Event Type:
-{event_type}
-
-Expected Participants:
-{participants}
-
-Event Date:
-{event_date}
-
-Event Location:
-{event_place}
-
-Create the complete plan from STARTING to ENDING.
-
-Include:
-
-1. Event Objective
-
-2. Pre Event Planning
-
-3. Team Formation
-
-4. Roles and Responsibilities
-
-5. Permission Process
-
-6. Event Timeline
-
-7. Venue Planning
-
-8. Equipment Requirements
-
-9. Registration Process
-
-10. Participant Management
-
-11. Guest Management
-
-12. Stage Arrangement
-
-13. Technical Requirements
-
-14. Sound System
-
-15. Projector
-
-16. Internet Requirements
-
-17. Volunteer Management
-
-18. Promotion Plan
-
-19. Social Media Promotion
-
-20. Poster Plan
-
-21. Event Schedule
-
-22. Opening Ceremony
-
-23. Main Activities
-
-24. Break Management
-
-25. Closing Ceremony
-
-26. Feedback Collection
-
-27. Post Event Report
-
-28. Event Checklist
-
-29. Problems that may occur
-
-30. Solutions
-
-Give the answer step by step.
-
-"""
-
-                answer = ask_ai(prompt)
-
-                st.markdown("## 📋 Complete Event Plan")
-
-                st.markdown(answer)
-
-                save_history(
-                    event_name,
-                    answer,
-                    "Event Planner"
-                )
-
-
-# =========================================================
-# EXAM HELPER
-# =========================================================
-
-elif option == "🎓 Exam Helper":
-
-    st.subheader("🎓 Exam Helper")
-
-    exam_type = st.selectbox(
-
-        "Select Help Type",
-
-        [
-            "Question Answer",
-            "MCQs",
-            "Important Questions",
-            "Short Answers",
-            "Long Answers",
-            "Topic Explanation"
-        ]
-
-    )
-
-    subject = st.text_input(
-        "Subject Name"
-    )
-
-    topic = st.text_input(
-        "Topic Name"
-    )
-
-    question = st.text_area(
-        "Enter your Question or Topic"
-    )
-
-
-    if st.button(
-        "🚀 Generate Exam Help"
-    ):
-
-        if not question and not topic:
-
-            st.warning(
-                "Please enter a Question or Topic."
-            )
-
-        else:
-
-            prompt = f"""
-
-You are an expert educational assistant.
-
-Help the student with:
-
-Help Type:
-{exam_type}
-
-Subject:
-{subject}
-
-Topic:
-{topic}
-
-Question:
-{question}
-
-Give accurate and easy-to-understand answers.
-
-If MCQs are requested:
-
-Give:
-
-Question
-A)
-B)
-C)
-D)
-
-Correct Answer:
-Explanation:
-
-"""
-
-            with st.spinner(
-                "Preparing your answer..."
-            ):
-
-                answer = ask_ai(prompt)
-
-                st.markdown(answer)
-
-                save_history(
-                    question or topic,
-                    answer,
-                    "Exam Helper"
-                )
-
-
-# =========================================================
-# PROJECT AND LAB GUIDE
-# =========================================================
-
-elif option == "🧪 Project & Lab Guide":
-
-    st.subheader("🧪 Project & Lab Guide")
-
-    guide_type = st.selectbox(
-
-        "Select Type",
-
-        [
-            "Project Idea",
-            "Mini Project",
-            "Major Project",
-            "Lab Experiment",
-            "Project Documentation",
-            "Project Explanation"
-        ]
-
-    )
-
-    branch = st.selectbox(
-
-        "Select Branch",
-
-        [
-            "CSE",
-            "ECE",
-            "EEE",
-            "MECH",
-            "CIVIL",
-            "AI & ML",
-            "Data Science",
-            "Other"
-        ]
-
-    )
-
-    project_topic = st.text_input(
-        "Enter Project / Lab Topic"
-    )
-
-
-    if st.button(
-        "🚀 Generate Guide"
-    ):
-
-        if not project_topic:
-
-            st.warning(
-                "Please enter a topic."
-            )
-
-        else:
-
-            prompt = f"""
-
-You are a professional Engineering Project Guide.
-
-Guide Type:
-{guide_type}
-
-Branch:
-{branch}
-
-Topic:
-{project_topic}
-
-Give a complete guide.
-
-Include:
-
-1. Introduction
-
-2. Objective
-
-3. Required Components
-
-4. Software Requirements
-
-5. Hardware Requirements
-
-6. Working Principle
-
-7. Step by Step Procedure
-
-8. Implementation
-
-9. Block Diagram Explanation
-
-10. Advantages
-
-11. Applications
-
-12. Future Improvements
-
-13. Viva Questions
-
-14. Conclusion
-
-Explain in simple language.
-
-"""
-
-            with st.spinner(
-                "Creating project guide..."
-            ):
-
-                answer = ask_ai(prompt)
-
-                st.markdown(answer)
-
-                save_history(
-                    project_topic,
-                    answer,
-                    "Project & Lab Guide"
-                )
-
-
-# =========================================================
-# GATE PREPARATION
-# =========================================================
-
-elif option == "📚 GATE Preparation":
-
-    st.subheader("📚 GATE Preparation")
-
-    st.write(
-        "Select Branch → Subject → Topic → Preparation Type"
-    )
-
-
-    # -----------------------------------------------------
-    # BRANCH
-    # -----------------------------------------------------
-
-    gate_branch = st.selectbox(
-
-        "🎓 Select Branch",
-
-        [
-            "CSE",
-            "ECE",
-            "EEE",
-            "ME",
-            "CE",
-            "AI & Data Science"
-        ]
-
-    )
-
-
-    # -----------------------------------------------------
-    # SUBJECT
-    # -----------------------------------------------------
-
-    subjects = {
-
-        "CSE": [
-
-            "Engineering Mathematics",
-            "Programming and Data Structures",
-            "Algorithms",
-            "Database Management Systems",
-            "Operating Systems",
-            "Computer Networks",
-            "Theory of Computation",
-            "Digital Logic",
-            "Computer Organization"
-        ],
-
-        "ECE": [
-
-            "Engineering Mathematics",
-            "Network Theory",
-            "Signals and Systems",
-            "Electronic Devices",
-            "Analog Circuits",
-            "Digital Circuits",
-            "Control Systems",
-            "Communications",
-            "Electromagnetics"
-        ],
-
-        "EEE": [
-
-            "Engineering Mathematics",
-            "Electric Circuits",
-            "Electromagnetic Fields",
-            "Signals and Systems",
-            "Electrical Machines",
-            "Power Systems",
-            "Control Systems",
-            "Electrical Measurements",
-            "Power Electronics"
-        ],
-
-        "ME": [
-
-            "Engineering Mathematics",
-            "Engineering Mechanics",
-            "Strength of Materials",
-            "Theory of Machines",
-            "Thermodynamics",
-            "Fluid Mechanics",
-            "Heat Transfer",
-            "Manufacturing Engineering"
-        ],
-
-        "CE": [
-
-            "Engineering Mathematics",
-            "Engineering Mechanics",
-            "Strength of Materials",
-            "Structural Analysis",
-            "Geotechnical Engineering",
-            "Fluid Mechanics",
-            "Transportation Engineering",
-            "Environmental Engineering"
-        ],
-
-        "AI & Data Science": [
-
-            "Engineering Mathematics",
-            "Programming",
-            "Data Structures",
-            "Machine Learning",
-            "Artificial Intelligence",
-            "Probability",
-            "Statistics",
-            "Database Systems"
-        ]
-
-    }
-
-
-    gate_subject = st.selectbox(
-
-        "📖 Select Subject",
-
-        subjects[gate_branch]
-
-    )
-
-
-    # -----------------------------------------------------
-    # TOPIC
-    # -----------------------------------------------------
-
-    gate_topic = st.text_input(
-        "📝 Enter Topic"
-    )
-
-
-    # -----------------------------------------------------
-    # PREPARATION TYPE
-    # -----------------------------------------------------
-
-    preparation_type = st.selectbox(
-
-        "🎯 Preparation Type",
-
-        [
-            "📅 Study Plan",
-            "❓ Important Questions",
-            "📝 MCQs",
-            "📄 Previous Papers",
-            "📚 Topic Explanation"
-        ]
-
-    )
-
-
-    # -----------------------------------------------------
-    # STUDY PLAN
-    # -----------------------------------------------------
-
-    if preparation_type == "📅 Study Plan":
-
-        study_days = st.selectbox(
-
-            "Select Study Duration",
-
-            [
-                "7 Days",
-                "15 Days",
-                "30 Days",
-                "60 Days",
-                "90 Days"
-            ]
-
-        )
-
-
-    # -----------------------------------------------------
-    # MCQ COUNT
-    # -----------------------------------------------------
-
-    if preparation_type == "📝 MCQs":
-
-        mcq_count = st.selectbox(
-
-            "Number of MCQs",
-
-            [
-                5,
-                10,
-                15,
-                20
-            ]
-
-        )
-
-
-    if st.button(
-        "🚀 Generate GATE Preparation"
-    ):
-
-        if not gate_topic:
-
-            st.warning(
-                "Please enter a Topic."
-            )
-
-        else:
-
-            # =============================================
-            # STUDY PLAN
-            # =============================================
-
-            if preparation_type == "📅 Study Plan":
-
-                prompt = f"""
-
-You are an expert GATE preparation mentor.
-
-Branch:
-{gate_branch}
-
-Subject:
-{gate_subject}
-
-Topic:
-{gate_topic}
-
-Create a {study_days} GATE preparation study plan.
-
-Include:
-
-1. Daily Schedule
-
-2. Concepts to Study
-
-3. Important Formulas
-
-4. Practice Questions
-
-5. Revision Plan
-
-6. Mock Test Plan
-
-7. Time Management Tips
-
-8. Important Topics
-
-Give a clear day-wise plan.
-
-"""
-
-
-            # =============================================
-            # IMPORTANT QUESTIONS
-            # =============================================
-
-            elif preparation_type == "❓ Important Questions":
-
-                prompt = f"""
-
-You are a GATE examination expert.
-
-Branch:
-{gate_branch}
-
-Subject:
-{gate_subject}
-
-Topic:
-{gate_topic}
-
-Generate important GATE questions.
-
-Include:
-
-1. Conceptual Questions
-
-2. Numerical Questions
-
-3. Frequently Asked Questions
-
-4. High Priority Questions
-
-Give answers and explanations.
-
-"""
-
-
-            # =============================================
-            # MCQS
-            # =============================================
-
-            elif preparation_type == "📝 MCQs":
-
-                prompt = f"""
-
-You are a GATE examination expert.
-
-Branch:
-{gate_branch}
-
-Subject:
-{gate_subject}
-
-Topic:
-{gate_topic}
-
-Generate {mcq_count} GATE style MCQs.
-
-For every question use this format:
-
-Question:
-
-A)
-
-B)
-
-C)
-
-D)
-
-Correct Answer:
-
-Explanation:
-
-Make the questions educational and relevant.
-
-"""
-
-
-            # =============================================
-            # PREVIOUS PAPERS
-            # =============================================
-
-            elif preparation_type == "📄 Previous Papers":
-
-                prompt = f"""
-
-You are a GATE preparation mentor.
-
-Branch:
-{gate_branch}
-
-Subject:
-{gate_subject}
-
-Topic:
-{gate_topic}
-
-Give a previous-paper-oriented preparation guide.
-
-Include:
-
-1. Common question patterns
-
-2. Frequently tested concepts
-
-3. Important numerical problem types
-
-4. Previous exam style questions
-
-5. Difficulty level
-
-6. Solutions and explanations
-
-Clearly mention that practice questions are representative
-unless exact official previous questions are provided by the user.
-
-"""
-
-
-            # =============================================
-            # TOPIC EXPLANATION
-            # =============================================
-
-            elif preparation_type == "📚 Topic Explanation":
-
-                prompt = f"""
-
-You are an expert GATE teacher.
-
-Branch:
-{gate_branch}
-
-Subject:
-{gate_subject}
-
-Topic:
-{gate_topic}
-
-Explain the topic completely.
-
-Include:
-
-1. Introduction
-
-2. Basic Concepts
-
-3. Important Definitions
-
-4. Formulas
-
-5. Step by Step Explanation
-
-6. Examples
-
-7. Numerical Examples
-
-8. Important Points
-
-9. Common Mistakes
-
-10. GATE Exam Tips
-
-Explain in simple student-friendly language.
-
-"""
-
-
-            # =============================================
-            # GENERATE
-            # =============================================
-
-            with st.spinner(
-                "Creating GATE preparation content..."
-            ):
-
-                answer = ask_ai(prompt)
-
-                st.markdown(
-                    f"## {preparation_type}"
-                )
-
-                st.markdown(answer)
-
-                save_history(
-
-                    f"{gate_branch} | {gate_subject} | {gate_topic}",
-
-                    answer,
-
-                    "GATE Preparation"
-
-                )
-
-
-# =========================================================
-# SETTINGS
-# =========================================================
-
-elif option == "⚙️ Settings":
-
-    st.subheader("⚙️ Settings")
-
-
-    # =====================================================
-    # AI SETTINGS
-    # =====================================================
-
-    st.markdown("## 🤖 AI Settings")
-
-    language = st.selectbox(
-
-        "🌐 Response Language",
-
-        [
-            "English",
-            "Telugu",
-            "Telugu + English"
-        ]
-
-    )
-
-    st.success(
-        f"Selected Language: {language}"
-    )
-
-
-    # =====================================================
-    # HISTORY
-    # =====================================================
-
-    st.markdown("---")
-
-    st.markdown("## 📜 History")
-
-    if len(st.session_state.history) == 0:
-
-        st.info(
-            "No history available."
-        )
-
-    else:
-
-        for index, item in enumerate(
-            reversed(st.session_state.history)
-        ):
-
-            with st.expander(
-
-                f"{item['section']} — {item['question'][:60]}"
-
-            ):
-
-                st.markdown(
-                    f"### Question\n{item['question']}"
-                )
-
-                st.markdown(
-                    f"### Answer\n{item['answer']}"
-                )
-
-
-    if st.button(
-        "🗑️ Clear History"
-    ):
-
-        st.session_state.history = []
-
-        st.success(
-            "History cleared successfully."
-        )
-
-        time.sleep(1)
-
-        st.rerun()
-
-
-    # =====================================================
-    # CLEAR CHAT
-    # =====================================================
-
-    st.markdown("---")
-
-    st.markdown("## 💬 Chat Settings")
-
-    if st.button(
-        "🗑️ Clear AI Chat"
-    ):
-
-        st.session_state.messages = []
-
-        st.success(
-            "Chat cleared successfully."
-        )
-
-
-    # =====================================================
-    # APP INFORMATION
-    # =====================================================
-
-    st.markdown("---")
-
-    st.markdown("## ℹ️ App Information")
-
-    st.write(
-        "🤖 App Name: Tech Mithra AI"
-    )
-
-    st.write(
-        "📚 Features:"
-    )
-
-    st.write(
-        """
-• AI Chat
-
-• Event Planner
-
-• Exam Helper
-
-• Project & Lab Guide
-
-• GATE Preparation
-
-• History
-
-• Settings
-"""
-    )
-
-
-# =========================================================
-# FOOTER
-# =========================================================
+    for i, question in enumerate(data["viva"], 1):
+        st.write(f"{i}. {question}")
 
 st.markdown("---")
 
 st.caption(
-    "🤖 Tech Mithra AI • Your AI Learning Assistant"
+    "TECH MITHRA AI | B.Tech EEE Learning Platform"
 )
