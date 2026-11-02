@@ -1,8 +1,9 @@
+
 import streamlit as st
-import plotly.graph_objects as go
+import streamlit.components.v1 as components
 
 st.set_page_config(
-    page_title="Tech Mithra AI",
+    page_title="EEE Machines 3D Learning",
     page_icon="⚡",
     layout="wide"
 )
@@ -10,300 +11,198 @@ st.set_page_config(
 st.markdown("""
 <style>
 .stApp {
-    background: #0b1020;
+    background: linear-gradient(135deg, #101827, #17243a);
     color: white;
 }
-h1,h2,h3 {
-    color: #00d4ff;
-}
-div.stButton > button {
-    background: #087ea4;
+h1, h2, h3 { color: #65d6ff !important; }
+div[data-testid="stTabs"] button {
     color: white;
-    border-radius: 10px;
-    width: 100%;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# MACHINE DATABASE
-
-machines = {
+MACHINES = {
     "DC Machines": {
+        "model": "https://sketchfab.com/models/e9ac2cf2f2d04180b02965c01f7a9a19/embed",
+        "principle": "A current-carrying conductor placed in a magnetic field experiences a force. This principle is used in a DC motor.",
         "parts": {
-            "Yoke": "Provides mechanical support and acts as a magnetic path.",
+            "Yoke": "Provides mechanical support and a path for magnetic flux.",
             "Pole Core": "Carries the field winding and produces magnetic flux.",
-            "Field Winding": "Produces the magnetic field.",
-            "Armature Core": "Provides a path for magnetic flux.",
-            "Armature Winding": "Conductors in which EMF is induced.",
-            "Commutator": "Converts internally induced AC into DC at the terminals.",
-            "Brushes": "Transfer current between the rotating commutator and external circuit."
+            "Field Winding": "Produces the main magnetic field.",
+            "Armature": "Rotating part in which EMF is induced.",
+            "Commutator": "Helps maintain unidirectional torque in a DC motor.",
+            "Brushes": "Transfer current between the external circuit and commutator."
         },
-        "working": "DC machine works on electromagnetic induction as a generator and force on a current-carrying conductor as a motor.",
-        "applications": "Electric traction, battery charging, cranes and industrial drives.",
-        "notes": "DC machines are classified into DC generators and DC motors. Important equations: Eb = PΦZN/60A and T ∝ ΦIa.",
-        "viva": [
-            "What is a DC machine?",
-            "What is the function of a commutator?",
-            "What is back EMF?",
-            "What is armature reaction?",
-            "What are the types of DC motors?"
-        ]
+        "applications": "Electric traction, cranes, lifts, rolling mills and variable-speed drives.",
+        "notes": "DC machines can work as motors or generators. A motor converts electrical energy into mechanical energy."
     },
-
     "Transformer": {
+        "model": "https://sketchfab.com/models/9e7076096b0346dfbbc729f75f1b41be/embed",
+        "principle": "A transformer works on the principle of mutual electromagnetic induction.",
         "parts": {
-            "Magnetic Core": "Provides a low reluctance path for magnetic flux.",
-            "Primary Winding": "Receives electrical energy from the AC supply.",
+            "Core": "Provides a low-reluctance path for magnetic flux.",
+            "Primary Winding": "Receives electrical energy from the supply.",
             "Secondary Winding": "Delivers electrical energy to the load.",
-            "Insulation": "Prevents electrical leakage between windings.",
-            "Transformer Oil": "Provides cooling and insulation in oil-filled transformers.",
-            "Tank": "Houses and protects the transformer.",
-            "Bushing": "Provides insulated terminals for electrical connections."
+            "Insulation": "Prevents unwanted electrical contact between windings and core.",
+            "Tank": "Houses and protects the transformer components."
         },
-        "working": "Transformer works on mutual electromagnetic induction. AC in the primary winding produces changing flux that induces EMF in the secondary winding.",
-        "applications": "Power transmission, distribution, chargers and electrical isolation.",
-        "notes": "EMF equation: E = 4.44 f N Φm. Turns ratio: V1/V2 = N1/N2 for an ideal transformer.",
-        "viva": [
-            "What is a transformer?",
-            "What is mutual induction?",
-            "What are transformer losses?",
-            "Why is transformer oil used?",
-            "What is the turns ratio?"
-        ]
+        "applications": "Power transmission, distribution systems, chargers, substations and electrical isolation.",
+        "notes": "A transformer changes AC voltage levels without changing frequency. It can be step-up or step-down."
     },
-
     "Three Phase Induction Motor": {
+        "model": "https://sketchfab.com/models/b02c98e04e614d97897e3dababb70bc8/embed",
+        "principle": "A three-phase supply produces a rotating magnetic field. This field induces current in the rotor and produces torque.",
         "parts": {
-            "Stator": "Stationary part that produces a rotating magnetic field.",
+            "Stator": "Stationary part that produces the rotating magnetic field.",
             "Rotor": "Rotating part that develops mechanical torque.",
             "Air Gap": "Small gap between stator and rotor.",
-            "Shaft": "Transfers mechanical power.",
-            "Bearings": "Support smooth shaft rotation.",
-            "Fan": "Provides cooling.",
-            "Frame": "Provides mechanical protection."
+            "Bearings": "Support the shaft and allow smooth rotation.",
+            "Cooling Fan": "Helps remove heat from the motor.",
+            "Shaft": "Transfers mechanical output to the load."
         },
-        "working": "A three-phase supply creates a rotating magnetic field. This induces rotor current and produces electromagnetic torque.",
-        "applications": "Pumps, fans, compressors and industrial machinery.",
-        "notes": "Synchronous speed Ns = 120f/P. Slip s = (Ns-N)/Ns.",
-        "viva": [
-            "What is an induction motor?",
-            "Define slip.",
-            "What is synchronous speed?",
-            "Why can an induction motor not run at synchronous speed?",
-            "What is a squirrel cage rotor?"
-        ]
+        "applications": "Pumps, fans, compressors, conveyors and industrial drives.",
+        "notes": "An induction motor works with electromagnetic induction. Its rotor speed is normally below synchronous speed."
     },
-
     "Single Phase Induction Motor": {
+        "model": None,
+        "principle": "A single-phase AC supply produces a pulsating magnetic field. A starting arrangement helps the motor start rotating.",
         "parts": {
-            "Stator": "Produces the magnetic field.",
-            "Main Winding": "Provides the main magnetic field.",
-            "Auxiliary Winding": "Helps in starting.",
-            "Capacitor": "Creates phase difference for starting in capacitor motors.",
-            "Rotor": "Develops mechanical torque.",
-            "Centrifugal Switch": "Disconnects the starting winding in applicable designs."
+            "Stator": "Contains the main and auxiliary windings.",
+            "Rotor": "Usually a squirrel-cage rotor that develops torque.",
+            "Main Winding": "Produces the main magnetic field.",
+            "Auxiliary Winding": "Helps produce starting torque.",
+            "Capacitor": "Provides phase shift in capacitor-start or capacitor-run motors.",
+            "Centrifugal Switch": "Disconnects the starting winding in some motor designs."
         },
-        "working": "A single-phase supply produces a pulsating magnetic field. Starting arrangements create the required starting torque.",
-        "applications": "Ceiling fans, pumps, refrigerators and washing machines.",
-        "notes": "Single-phase induction motors are not inherently self-starting. Common types include split-phase, capacitor-start and shaded-pole motors.",
-        "viva": [
-            "Why is a single-phase motor not self-starting?",
-            "What is the function of a capacitor?",
-            "What is a shaded-pole motor?",
-            "What is a split-phase motor?",
-            "Where are single-phase motors used?"
-        ]
+        "applications": "Ceiling fans, small pumps, refrigerators and domestic appliances.",
+        "notes": "A single-phase induction motor is not inherently self-starting."
     },
-
     "Synchronous Machines": {
+        "model": None,
+        "principle": "The rotor rotates in synchronism with the rotating magnetic field produced by the stator.",
         "parts": {
             "Stator": "Contains the armature winding.",
             "Rotor": "Carries the field system.",
-            "Field Winding": "Produces rotor magnetic flux.",
-            "Damper Winding": "Helps with starting in applicable motors and reduces oscillations.",
-            "Shaft": "Transfers mechanical power.",
-            "Bearings": "Support the rotor."
-        },
-        "working": "The rotor magnetic field locks with the rotating stator magnetic field and runs at synchronous speed.",
-        "applications": "Power generation, power factor correction and industrial drives.",
-        "notes": "Synchronous speed Ns = 120f/P. Power factor can be controlled by field excitation.",
-        "viva": [
-            "What is a synchronous machine?",
-            "Define synchronous speed.",
-            "What is excitation?",
-            "What is a synchronous condenser?",
-            "What is hunting?"
-        ]
-    },
-
-    "Alternator": {
-        "parts": {
-            "Stator Core": "Provides a magnetic path and supports the armature winding.",
-            "Armature Winding": "Generates three-phase EMF.",
-            "Rotor": "Carries the DC field winding.",
             "Field Winding": "Produces the rotor magnetic field.",
-            "Slip Rings": "Supply DC excitation to applicable rotor designs.",
-            "Shaft": "Receives mechanical input.",
-            "Cooling System": "Removes heat."
+            "Damper Winding": "Helps reduce oscillations in some synchronous machines.",
+            "Shaft": "Transfers mechanical power."
         },
-        "working": "Mechanical rotation of the rotor field induces alternating EMF in the stationary stator winding.",
-        "applications": "Thermal, hydro and wind power generation.",
-        "notes": "Frequency f = PN/120. EMF equation: E = 4.44 Kp Kd Φ T f per phase.",
-        "viva": [
-            "What is an alternator?",
-            "Why is the armature placed on the stator?",
-            "What is voltage regulation?",
-            "What is an EMF equation?",
-            "What is the function of excitation?"
-        ]
+        "applications": "Power generation, power-factor improvement and constant-speed drives.",
+        "notes": "Synchronous speed is Ns = 120f/P RPM."
     },
-
-    "Special Electrical Machines": {
+    "Alternator": {
+        "model": None,
+        "principle": "An alternator converts mechanical energy into AC electrical energy by electromagnetic induction.",
         "parts": {
-            "Stepper Motor": "Moves through fixed angular steps.",
-            "Servo Motor": "Provides controlled position or speed.",
-            "BLDC Motor": "Uses electronic commutation.",
-            "Reluctance Motor": "Produces torque due to magnetic reluctance.",
-            "Universal Motor": "Can operate on AC or DC supply within its ratings."
+            "Stator": "Contains the three-phase armature winding.",
+            "Rotor": "Produces the rotating magnetic field.",
+            "Exciter": "Supplies field current to the rotor.",
+            "Slip Rings": "Used in some alternator designs to supply rotor field current.",
+            "Shaft": "Receives mechanical input from the prime mover."
         },
-        "working": "Special machines use different electromagnetic principles and electronic control techniques depending on their construction.",
-        "applications": "Robotics, automation, CNC machines and electric vehicles.",
-        "notes": "Important types include stepper motors, servo motors, BLDC motors and switched reluctance motors.",
-        "viva": [
-            "What is a BLDC motor?",
-            "What is a stepper motor?",
-            "What is a servo motor?",
-            "What is reluctance torque?",
-            "Where are special machines used?"
-        ]
+        "applications": "Power stations, diesel generator sets and hydroelectric plants.",
+        "notes": "Alternators generate AC voltage. Frequency depends on speed and number of poles."
+    },
+    "Special Electrical Machines": {
+        "model": None,
+        "principle": "Special machines use different electromagnetic arrangements to produce controlled motion or electrical output.",
+        "parts": {
+            "Stator": "Stationary magnetic structure.",
+            "Rotor": "Moving part of the machine.",
+            "Windings": "Produce or interact with magnetic fields.",
+            "Controller": "Controls operation in electronically controlled machines.",
+            "Position Sensor": "Detects rotor position in some designs."
+        },
+        "applications": "Robotics, automation, electric vehicles and precision control.",
+        "notes": "Examples include stepper motors, servo motors, BLDC motors and switched reluctance motors."
     }
 }
 
-# HOME
+st.title("⚡ B.Tech EEE – Electrical Machines")
+st.caption("Learn machine construction, working principles and applications with 3D models.")
 
-st.title("⚡ TECH MITHRA AI")
-st.subheader("B.Tech Electrical & Electronics Engineering")
-st.write("Your Digital Electrical Machines Laboratory")
-
-st.markdown("---")
-
-st.header("⚡ Electrical Machines")
-
-machine = st.selectbox(
+machine_name = st.sidebar.selectbox(
     "Select Electrical Machine",
-    list(machines.keys())
+    list(MACHINES.keys())
 )
 
-data = machines[machine]
+data = MACHINES[machine_name]
 
-st.markdown("---")
+st.header("🔧 " + machine_name)
 
-st.header("📚 " + machine)
-
-# TABS
-
-tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-    "3D View",
-    "Parts",
-    "Working",
-    "Notes",
-    "Applications",
-    "Viva"
+tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    "🌐 3D Model",
+    "⚙️ Parts",
+    "📘 Working",
+    "📝 Notes",
+    "🎓 Viva"
 ])
 
-# 3D VIEW
-
 with tab1:
-    st.subheader("Interactive 3D Learning Model")
-
-    st.info(
-        "Use mouse or touch to rotate and zoom the 3D schematic. "
-        "These are educational component markers, not manufacturing CAD models."
-    )
-
-    part_names = list(data["parts"].keys())
-
-    fig = go.Figure()
-
-    for i, part in enumerate(part_names):
-
-        fig.add_trace(go.Scatter3d(
-            x=[i % 3],
-            y=[i // 3],
-            z=[i * 0.4],
-            mode="markers+text",
-            marker=dict(
-                size=15,
-                color=i * 40,
-                colorscale="Turbo"
-            ),
-            text=[part],
-            textposition="top center",
-            name=part
-        ))
-
-    fig.update_layout(
-        height=500,
-        paper_bgcolor="#0b1020",
-        font=dict(color="white"),
-        scene=dict(
-            bgcolor="#0b1020",
-            xaxis_title="X",
-            yaxis_title="Y",
-            zaxis_title="Z"
-        ),
-        margin=dict(l=0, r=0, b=0, t=20)
-    )
-
-    st.plotly_chart(
-        fig,
-        use_container_width=True
-    )
-
-# PARTS
+    st.subheader("Interactive 3D Machine View")
+    if data["model"]:
+        st.info("Drag to rotate • Scroll to zoom • Use the viewer controls")
+        components.iframe(
+            data["model"] + "?autostart=0&ui_theme=dark",
+            height=550,
+            scrolling=False
+        )
+    else:
+        st.warning(
+            "ఈ Machine కోసం ప్రత్యేకమైన 3D model ఇంకా జోడించలేదు. "
+            "ప్రస్తుతానికి Parts మరియు Working వివరాలు చూడవచ్చు."
+        )
 
 with tab2:
-    st.subheader("🔩 Parts & Components")
-
-    selected_part = st.selectbox(
-        "Select Component",
-        part_names
-    )
-
-    st.markdown("### " + selected_part)
-
-    st.write(data["parts"][selected_part])
-
-    st.success("Component details")
-
-# WORKING
+    st.subheader("Machine Parts and Functions")
+    for part, description in data["parts"].items():
+        with st.expander("🔹 " + part):
+            st.write(description)
 
 with tab3:
-    st.subheader("⚙️ Working Principle")
-    st.write(data["working"])
-
-# NOTES
-
-with tab4:
-    st.subheader("📝 Complete Notes")
-    st.write(data["notes"])
-
-# APPLICATIONS
-
-with tab5:
-    st.subheader("🔬 Applications")
+    st.subheader("Working Principle")
+    st.write(data["principle"])
+    st.subheader("Applications")
     st.write(data["applications"])
 
-# VIVA
+with tab4:
+    st.subheader("Study Notes")
+    st.write(data["notes"])
+    st.markdown("### Important Points")
+    for part, description in data["parts"].items():
+        st.markdown(f"- **{part}:** {description}")
 
-with tab6:
-    st.subheader("🎯 Viva Questions")
+with tab5:
+    st.subheader("Viva Questions")
+    questions = {
+        "DC Machines": [
+            ("What is a DC machine?", "A machine that converts mechanical energy into DC electrical energy or vice versa."),
+            ("What is the function of a commutator?", "It helps maintain unidirectional torque in a DC motor."),
+            ("What is back EMF?", "The EMF induced in the armature that opposes the applied voltage.")
+        ],
+        "Transformer": [
+            ("What is a transformer?", "A static device that transfers AC power between circuits through electromagnetic induction."),
+            ("What is the function of the core?", "It provides a path for magnetic flux."),
+            ("What is the turns ratio?", "The ratio of secondary winding turns to primary winding turns.")
+        ],
+        "Three Phase Induction Motor": [
+            ("What is an induction motor?", "An AC motor in which rotor current is induced by the stator magnetic field."),
+            ("What is slip?", "The difference between synchronous speed and rotor speed divided by synchronous speed."),
+            ("What is synchronous speed?", "Ns = 120f/P RPM.")
+        ]
+    }
 
-    for i, question in enumerate(data["viva"], 1):
-        st.write(f"{i}. {question}")
+    default_questions = [
+        ("What is the working principle?", data["principle"]),
+        ("Name two main parts.", ", ".join(list(data["parts"].keys())[:2])),
+        ("Mention two applications.", data["applications"])
+    ]
 
-st.markdown("---")
+    selected_questions = questions.get(machine_name, default_questions)
 
-st.caption(
-    "TECH MITHRA AI | B.Tech EEE Learning Platform"
-)
+    for i, (question, answer) in enumerate(selected_questions, 1):
+        with st.expander(f"Q{i}. {question}"):
+            st.write("**Answer:**", answer)
+
+st.sidebar.markdown("---")
+st.sidebar.caption("EEE Learning App | 3D Learning Edition")
